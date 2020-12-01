@@ -10,16 +10,16 @@ import (
 	"github.com/morgine/songs/src/wpt"
 	"gorm.io/gorm"
 	"math/rand"
-	"net/url"
 	"time"
 )
 
 type OpenPlatform struct {
 	pt   *platform.OpenPlatform
 	gorm *model.AppGorm
+	host string
 }
 
-func NewOpenPlatform(pt *platform.OpenPlatform, db *gorm.DB) (*OpenPlatform, error) {
+func NewOpenPlatform(pt *platform.OpenPlatform, db *gorm.DB, host string) (*OpenPlatform, error) {
 	err := db.AutoMigrate(&model.App{})
 	if err != nil {
 		return nil, err
@@ -27,7 +27,25 @@ func NewOpenPlatform(pt *platform.OpenPlatform, db *gorm.DB) (*OpenPlatform, err
 	return &OpenPlatform{
 		pt:   pt,
 		gorm: model.NewGorm(db).App(),
+		host: host,
 	}, nil
+}
+
+func (op *OpenPlatform) ListenMessage(appidGetter func(ctx *gin.Context) string) gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		// 获取 APPID
+		_ = appidGetter(ctx)
+		_, echoStr, err := op.pt.ListenMessage(ctx.Request)
+		if err != nil {
+			log.Emergency.Println(err)
+		} else {
+			if echoStr != "" {
+				ctx.Writer.WriteString(echoStr)
+			} else {
+				// 处理 message
+			}
+		}
+	}
 }
 
 func (op *OpenPlatform) ListenVerifyTicket(ctx *gin.Context) {
@@ -42,7 +60,7 @@ func (op *OpenPlatform) ListenVerifyTicket(ctx *gin.Context) {
 
 func (op *OpenPlatform) GetAppAuthorizerUrl(redirectUrl string) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		uri, err := op.pt.OpenPlatformAuthRedirectUrl(resetHostUrl(ctx.Request.URL, redirectUrl))
+		uri, err := op.pt.OpenPlatformAuthRedirectUrl(resetHostUrl(op.host, redirectUrl))
 		if err != nil {
 			SendError(ctx, err)
 		} else {
@@ -51,8 +69,8 @@ func (op *OpenPlatform) GetAppAuthorizerUrl(redirectUrl string) gin.HandlerFunc 
 	}
 }
 
-func resetHostUrl(u *url.URL, route string) string {
-	return u.Scheme + "://" + u.Host + route
+func resetHostUrl(host, route string) string {
+	return host + route
 }
 
 func (op *OpenPlatform) ListenAppAuthorizerCode(ctx *gin.Context) {
@@ -216,15 +234,15 @@ func (op *OpenPlatform) GetUserSummary() gin.HandlerFunc {
 }
 
 // 生成随机统计数据，便于测试
-func randomTotalSummaries(dateFrom, dateTo string) (summary *platform.Summary, err error){
-	appSummaries, err := randomAppSummaries(20 + rand.Intn(80), dateFrom, dateTo)
+func randomTotalSummaries(dateFrom, dateTo string) (summary *platform.Summary, err error) {
+	appSummaries, err := randomAppSummaries(20+rand.Intn(80), dateFrom, dateTo)
 	if err != nil {
 		return nil, err
 	}
 	return platform.CountTotalSummary(appSummaries), nil
 }
 
-func randomAppSummaries(appNum int, dateFrom, dateTo string) (appSummaries []*platform.AppSummary, err error){
+func randomAppSummaries(appNum int, dateFrom, dateTo string) (appSummaries []*platform.AppSummary, err error) {
 	for i := 1; i <= appNum; i++ {
 		userSummaries, err := randomSummaries(dateFrom, dateTo)
 		if err != nil {

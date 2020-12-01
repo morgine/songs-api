@@ -1,11 +1,11 @@
 package wpt
 
 type UserSummary struct {
-	RefDate      string // 数据的日期
-	UserSource   int    // 用户的渠道，数值代表的含义如下： 0代表其他合计 1代表公众号搜索 17代表名片分享 30代表扫描二维码 51代表支付后关注（在支付完成页） 57代表文章内账号名称 100微信广告 161他人转载 176 专辑页内账号名称
-	NewUser      int    // 新增的用户数量
-	CancelUser   int    // 取消关注的用户数量，new_user减去cancel_user即为净增用户数量
-	CumulateUser int    // 总用户量
+	RefDate      string `json:"ref_date"`      // 数据的日期
+	UserSource   int    `json:"user_source"`   // 用户的渠道，数值代表的含义如下： 0代表其他合计 1代表公众号搜索 17代表名片分享 30代表扫描二维码 51代表支付后关注（在支付完成页） 57代表文章内账号名称 100微信广告 161他人转载 176 专辑页内账号名称
+	NewUser      int    `json:"new_user"`      // 新增的用户数量
+	CancelUser   int    `json:"cancel_user"`   // 取消关注的用户数量，new_user减去cancel_user即为净增用户数量
+	CumulateUser int    `json:"cumulate_user"` // 总用户量
 }
 
 // 获取用户增减数据

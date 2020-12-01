@@ -35,7 +35,11 @@ func (r *accessTokenStorage) SetAccessToken(key string, token *platform.AccessTo
 func (r *accessTokenStorage) GetAccessToken(key string) (token *platform.AccessToken, err error) {
 	data, err := r.client.Get(context.Background(), r.key(key)).Bytes()
 	if err != nil {
-		return nil, err
+		if err == redis.Nil {
+			return nil, nil
+		} else {
+			return nil, err
+		}
 	} else {
 		token = &platform.AccessToken{}
 		err = json.Unmarshal(data, token)
@@ -64,6 +68,7 @@ func (r *openPlatformStorage) SaveAuthorizer(authorizer *wpt.Authorizer) error {
 	return r.gorm.SaveAPP(app.Appid, app)
 }
 
+// 重置所有数据库中的 app 信息为当提供的数据
 func (r *openPlatformStorage) ResetAuthorizers(authroizers []*wpt.Authorizer) error {
 	return r.gorm.ResetApps(authorizerToApp(authroizers...))
 }

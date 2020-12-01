@@ -357,9 +357,11 @@ type AuthorizerInformation struct {
 func GetAuthorizerList(componentAccessToken, ComponentAppid string, offset, count int) (*AuthorizerList, error) {
 	data := map[string]string{
 		"component_appid": ComponentAppid,
+		"offset":          strconv.Itoa(offset),
+		"count":           strconv.Itoa(count),
 	}
 	al := &AuthorizerList{}
-	err := PostSchema(KindJson, "https://api.weixin.qq.com/cgi-bin/component/api_get_authorizer_list?component_access_token=" + componentAccessToken, data, al)
+	err := PostSchema(KindJson, "https://api.weixin.qq.com/cgi-bin/component/api_get_authorizer_list?component_access_token="+componentAccessToken, data, al)
 	if err != nil {
 		return nil, err
 	} else {

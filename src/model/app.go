@@ -5,7 +5,7 @@ import "gorm.io/gorm"
 type App struct {
 	ID int
 	// 公众号 appID
-	Appid string `gorm:"uniqueIndex"`
+	Appid string `gorm:"index"`
 	// 授权方昵称
 	NickName string
 	// 授权方头像
@@ -32,7 +32,16 @@ func (g *Gorm) App() *AppGorm {
 
 func (g *AppGorm) SaveAPP(appid string, app *App) error {
 	app.ID = 0
-	return g.g.Save(app, Where("appid=?", appid))
+	exist := &App{}
+	err := g.g.First(exist, Where("appid=?", appid))
+	if err != nil {
+		return err
+	}
+	if exist.ID > 0 {
+		return g.g.Updates(app, Where("appid=?", appid))
+	} else {
+		return g.g.Create(app)
+	}
 }
 
 func (g *AppGorm) CountApps(c ...Condition) (total int64, err error) {
@@ -50,6 +59,7 @@ func (g *AppGorm) GetApps(c ...Condition) (apps []*App, err error) {
 	return
 }
 
+// 重置所有 APP, 参数 apps 必须一次性包含所有已授权的 APP 信息，该操作会删除多余的 APP，并尝试更新或创建新的 APP 信息
 func (g *AppGorm) ResetApps(apps []*App) (err error) {
 	var appids []string
 	for _, app := range apps {

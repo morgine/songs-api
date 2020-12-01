@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 )
@@ -18,6 +19,7 @@ import (
 func Run() {
 	// 加载配置文件
 	configFile := flag.String("c", "config.toml", "配置文件")
+	appVerifiesDir := flag.String("verifies-dir", "verifies", "开放平台验证文件存放目录")
 	addr := flag.String("addr", ":9879", "监听地址")
 	flag.Parse()
 	handlers, release := env.LoadEnv(*configFile)
@@ -25,6 +27,16 @@ func Run() {
 	registerDefaultAdmin(handlers.Admin)
 	// 注册路由
 	engine := gin.New()
+
+	// 处理共开放平台验证文件
+	engine.NoRoute(func(ctx *gin.Context) {
+		path := ctx.Request.URL.Path
+		if ext := filepath.Ext(path); ext == ".txt" {
+			http.ServeFile(ctx.Writer, ctx.Request, filepath.Join(*appVerifiesDir, path))
+		} else {
+			http.NotFound(ctx.Writer, ctx.Request)
+		}
+	})
 
 	engine.Use(gin.Logger())
 
@@ -47,7 +59,10 @@ func Run() {
 	}
 
 	{
-		noAuth.GET("/listen-verify-ticket", handlers.OpenPlatform.ListenVerifyTicket)
+		noAuth.POST("/listen-verify-ticket", handlers.OpenPlatform.ListenVerifyTicket)
+		noAuth.POST("/listen-message/:appid", handlers.OpenPlatform.ListenMessage(func(ctx *gin.Context) string {
+			return ctx.Param("appid")
+		}))
 		noAuth.GET("/app-authorizer-url", handlers.OpenPlatform.GetAppAuthorizerUrl("/listen-authorizer-code"))
 		noAuth.GET("/listen-app-authorizer-code", handlers.OpenPlatform.ListenAppAuthorizerCode)
 		adminAuth.GET("/reset-apps", handlers.OpenPlatform.ResetAppAuthorizers)
@@ -72,8 +87,10 @@ func Run() {
 func serveHttp(addr string, engine *gin.Engine) {
 	// 开启服务
 	srv := &http.Server{
-		Addr:    addr,
-		Handler: engine,
+		Addr:         addr,
+		Handler:      engine,
+		ReadTimeout:  180 * time.Second,
+		WriteTimeout: 180 * time.Second,
 	}
 
 	// Initializing the server in a goroutine so that

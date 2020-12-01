@@ -14,29 +14,39 @@ import (
 var tenYearSeconds int64 = 10 * 365 * 24 * 3600 // 10 年
 
 type OpenPlatform struct {
-	appid     string
-	appSecret string
-	decrypter *wpt.WXBizMsgCrypt
-	notify    *wpt.AuthorizationNotify
-	store     OpenPlatformStorage
-	mu        sync.Mutex
+	appid          string
+	appSecret      string
+	msgVerifyToken string
+	decrypter      *wpt.WXBizMsgCrypt
+	notify         *wpt.AuthorizationNotify
+	store          OpenPlatformStorage
+	mu             sync.Mutex
 }
 
-func NewOpenPlatform(appid, secret string, store OpenPlatformStorage, decrypter *wpt.WXBizMsgCrypt) *OpenPlatform {
+func NewOpenPlatform(appid, secret string, store OpenPlatformStorage, msgVerifyToken string, decrypter *wpt.WXBizMsgCrypt) *OpenPlatform {
 	return &OpenPlatform{
-		appid:     appid,
-		appSecret: secret,
-		decrypter: decrypter,
-		notify:    nil,
-		store:     store,
-		mu:        sync.Mutex{},
+		appid:          appid,
+		appSecret:      secret,
+		decrypter:      decrypter,
+		msgVerifyToken: msgVerifyToken,
+		notify:         nil,
+		store:          store,
+		mu:             sync.Mutex{},
 	}
 }
 
 // 读取用户发送/触发的消息, 如果 decrypter 不为 nil, 则通过 decrypter 解密, 否则按明文方式解析消息.
-// 读取消息之前应当使用 CheckSignature 验证签名
-func (w *OpenPlatform) ListenMessage(r *http.Request) (*message.ServerMessage, error) {
-	return message.ReadServerMessage(r, w.decrypter)
+func (w *OpenPlatform) ListenMessage(r *http.Request) (msg *message.ServerMessage, echoStr string, err error) {
+	echoStr, err = message.CheckSignature(r, w.msgVerifyToken)
+	if err != nil {
+		return nil, "", err
+	}
+	if echoStr != "" {
+		return nil, echoStr, nil
+	} else {
+		msg, err = message.ReadServerMessage(r, w.decrypter)
+	}
+	return
 }
 
 // Response 用于被动回复消息, 当用户发送文本、图片、视频、图文、地理位置这五种消息时，开发者只能回复1条
@@ -259,29 +269,39 @@ func (w *OpenPlatform) ResetAuthorizers() error {
 	if err != nil {
 		return err
 	}
-	list, err := wpt.GetAuthorizerList(accessToken, w.appid, 0, 500)
-	if err != nil {
-		return err
-	}
+	// 包含所有 app 信息，一次性全部重置
 	var authorizers []*wpt.Authorizer
-	for _, information := range list.List {
-		token := &AccessToken{
-			Token:           "",
-			Refresh:         information.RefreshToken,
-			TokenExpireAt:   0,
-			RefreshExpireAt: tenYearSeconds,
-		}
-		// 保存 access token
-		err = w.store.SetAccessToken(information.AuthorizerAppid, token)
+	var offset, limit = 0, 100
+
+	for {
+		list, err := wpt.GetAuthorizerList(accessToken, w.appid, offset, limit)
 		if err != nil {
 			return err
 		}
-		// 获取授权方信息
-		authorizer, err := w.getAuthorizerInfo(information.AuthorizerAppid)
-		if err != nil {
-			return err
+		if offset >= list.TotalCount {
+			break
+		} else {
+			offset += limit
 		}
-		authorizers = append(authorizers, authorizer)
+		for _, information := range list.List {
+			token := &AccessToken{
+				Token:           "",
+				Refresh:         information.RefreshToken,
+				TokenExpireAt:   0,
+				RefreshExpireAt: tenYearSeconds,
+			}
+			// 保存 access token
+			err = w.store.SetAccessToken(information.AuthorizerAppid, token)
+			if err != nil {
+				return err
+			}
+			// 获取授权方信息
+			authorizer, err := w.getAuthorizerInfo(information.AuthorizerAppid)
+			if err != nil {
+				return err
+			}
+			authorizers = append(authorizers, authorizer)
+		}
 	}
 	return w.store.ResetAuthorizers(authorizers)
 }
@@ -294,6 +314,7 @@ type Summary struct {
 type AppSummary struct {
 	Appid     string
 	Nickname  string
+	Err       string
 	Summaries []*wpt.UserSummary
 }
 
@@ -312,22 +333,22 @@ func (w *OpenPlatform) GetAppSummaries(appids []string, beginDate, endDate strin
 	}
 	for _, app := range apps {
 		appid := app.Appid
+		var summary = &AppSummary{
+			Appid:    appid,
+			Nickname: app.NickName,
+		}
+		summaries = append(summaries, summary)
 		accessToken, err := w.GetAuthorizerAccessToken(appid)
 		if err != nil {
-			return nil, err
-		}
-		var userSummaries []*wpt.UserSummary
-		userSummaries, err = wpt.GetUserSummary(accessToken, beginDate, endDate)
-		if err != nil {
-			return nil, err
-		}
-		if len(userSummaries) > 0 {
-			nickName := app.NickName
-			summaries = append(summaries, &AppSummary{
-				Appid:     appid,
-				Nickname:  nickName,
-				Summaries: userSummaries,
-			})
+			summary.Err = err.Error()
+		} else {
+			var userSummaries []*wpt.UserSummary
+			userSummaries, err = wpt.GetUserSummary(accessToken, beginDate, endDate)
+			if err != nil {
+				summary.Err = err.Error()
+			} else {
+				summary.Summaries = userSummaries
+			}
 		}
 	}
 	return summaries, nil

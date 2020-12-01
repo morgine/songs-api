@@ -12,11 +12,16 @@ import (
 	"gorm.io/gorm"
 )
 
+type ServerEnv struct {
+	Host string `toml:"host"`
+}
+
 type OpenPlatformEnv struct {
-	AesToken       string `toml:"aes_token"`
-	EncodingAesKey string `toml:"encoding_aes_key"`
-	AppSecret      string `toml:"app_secret"`
-	Appid          string `toml:"appid"`
+	AesToken           string `toml:"aes_token"`
+	EncodingAesKey     string `toml:"encoding_aes_key"`
+	AppSecret          string `toml:"app_secret"`
+	Appid              string `toml:"appid"`
+	MessageVerifyToken string `toml:"message_verify_token"`
 }
 
 type AdvertPlatformEnv struct {
@@ -37,6 +42,11 @@ func LoadEnv(configFile string) (handlers *Handlers, release func() error) {
 	if err != nil {
 		panic(err)
 	}
+	serverEnv := &ServerEnv{}
+	err = configs.UnmarshalSub("server", serverEnv)
+	if err != nil {
+		panic(err)
+	}
 	orm, err := orm.NewPostgresORM("postgres", "gorm", configs)
 	if err != nil {
 		panic(err)
@@ -46,12 +56,12 @@ func LoadEnv(configFile string) (handlers *Handlers, release func() error) {
 	if err != nil {
 		panic(err)
 	}
-	//var m = model.NewGorm(orm)
-	//openAccessStore := newAccessTokenStorage("app_", accessRedisClient)
-	//openPlatform, err := NewOpenPlatform("open-platform", openAccessStore, m, configs)
-	//if err != nil {
-	//	panic(err)
-	//}
+	var m = model.NewGorm(orm)
+	openAccessStore := newAccessTokenStorage("app_", accessRedisClient)
+	openPlatform, err := NewOpenPlatform("open-platform", openAccessStore, m, configs)
+	if err != nil {
+		panic(err)
+	}
 	advertAccessStore := newAccessTokenStorage("ad_", accessRedisClient)
 	advertPlatform, err := NewAdvertPlatform("advert-platform", advertAccessStore, configs)
 	if err != nil {
@@ -72,12 +82,11 @@ func LoadEnv(configFile string) (handlers *Handlers, release func() error) {
 	if err != nil {
 		panic(err)
 	}
-	//openPlatformHandler, err := handler.NewOpenPlatform(openPlatform, orm)
-	openPlatformHandler, err := handler.NewOpenPlatform(nil, orm)
+	openPlatformHandler, err := handler.NewOpenPlatform(openPlatform, orm, serverEnv.Host)
 	if err != nil {
 		panic(err)
 	}
-	advertPlatformHandler := handler.NewAdvertPlatform(advertPlatform)
+	advertPlatformHandler := handler.NewAdvertPlatform(advertPlatform, serverEnv.Host)
 	return &Handlers{
 			Admin:          admin,
 			OpenPlatform:   openPlatformHandler,

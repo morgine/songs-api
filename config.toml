@@ -1,3 +1,6 @@
+[server]
+host = "http://localhost:9879"
+
 # postgres 数据库配置
 [postgres]
 # 连接地址
@@ -5,7 +8,7 @@ host = "127.0.0.1"
 # 连接端口
 port = 5432
 # 用户名
-user = "postgres"
+user = "songs"
 # 密码
 password = "123456"
 # 数据库
@@ -19,12 +22,33 @@ max_open_conns = 10
 # 连接池中最多空闲链接数量, 如果该值为 0, 则不保留空闲链接
 max_idle_conns = 10
 
+# mysql 数据库配置
+[mysql]
+# 连接地址
+host = "127.0.0.1"
+# 连接端口
+port = 3306
+# 用户名
+user = "songs"
+# 密码
+password = "y4fDf8E6cH2xZmPr"
+# 数据库
+db_name = "songs"
+# 连接参数
+parameters = "charset=utf8mb4&parseTime=True&loc=Local&allowNativePasswords=true"
+# 最长等待断开时间(单位: 秒), 如果该值为 0, 则不限制时间
+max_lifetime = 0
+# 最多打开数据库的连接数量, 如果该值为 0, 则不限制连接数量
+max_open_conns = 10
+# 连接池中最多空闲链接数量, 如果该值为 0, 则不保留空闲链接
+max_idle_conns = 10
+
 # gorm 配置
 [gorm]
 # 日志等级 1-Silent, 2-Error, 3-Warn, 4-Info
-log_level = 4
+log_level = 3
 # 数据库类型(目前支持的数据库类型：mysql/postgres)
-dialect = "postgres"
+dialect = "mysql"
 # 数据库表名前缀
 table_prefix = ""
 # 使用单数表名
@@ -32,14 +56,16 @@ singular_table = false
 
 # 开放平台配置
 [open-platform]
-# 加密 aes token
-aes_token = ""
-# 加密 aes key
-encoding_aes_key = ""
-# app secret
-app_secret = ""
 # appid
-appid = ""
+appid = "wx40ea5ae4c987a848"
+# app secret
+app_secret = "86e09649a4c5b58a5bb5150067b43e04"
+# 加密 aes token
+aes_token = "e44r4g6BpsA2fRPPmV4BmG15o6vXGffr"
+# 加密 aes key
+encoding_aes_key = "fSvz79hvVzZLS7Sj9xVli0V87Y9v960Y69909Z9yvx8"
+# 消息校验 Token
+message_verify_token = "e44r4g6BpsA2fRPPmV4BmG15o6vXGffr"
 
 # 广告平台配置
 [advert-platform]

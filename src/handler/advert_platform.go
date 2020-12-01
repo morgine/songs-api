@@ -8,11 +8,12 @@ import (
 )
 
 type AdvertPlatform struct {
-	pt *platform.AdvertPlatform
+	pt   *platform.AdvertPlatform
+	host string
 }
 
-func NewAdvertPlatform(pt *platform.AdvertPlatform) *AdvertPlatform {
-	return &AdvertPlatform{pt: pt}
+func NewAdvertPlatform(pt *platform.AdvertPlatform, host string) *AdvertPlatform {
+	return &AdvertPlatform{pt: pt, host: host}
 }
 
 // 目前授权信息保存在服务器端，该方法用于检测授权是否过期，授权过期应该提示用户重新授权
@@ -28,7 +29,7 @@ func (ap *AdvertPlatform) CheckAdvertAuthorize(ctx *gin.Context) {
 // 获得授权地址
 func (ap *AdvertPlatform) GetAdvertAuthorizerUrl(redirectRoute string) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		SendJSON(ctx, ap.pt.AuthUrl(resetHostUrl(ctx.Request.URL, redirectRoute), ""))
+		SendJSON(ctx, ap.pt.AuthUrl(resetHostUrl(ap.host, redirectRoute), ""))
 	}
 }
 
@@ -36,7 +37,7 @@ func (ap *AdvertPlatform) GetAdvertAuthorizerUrl(redirectRoute string) gin.Handl
 func (ap *AdvertPlatform) ListenAdvertAuthorizerCode(thisRoute string) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		code, _ := ap.pt.AuthCode(ctx.Request)
-		err := ap.pt.SaveAccessToken(code, resetHostUrl(ctx.Request.URL, thisRoute))
+		err := ap.pt.SaveAccessToken(code, resetHostUrl(ap.host, thisRoute))
 		if err != nil {
 			SendMessage(ctx, message.StatusOK, "授权失败："+err.Error())
 		} else {

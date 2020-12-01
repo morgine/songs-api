@@ -18,5 +18,5 @@ func NewOpenPlatform(namespace string, accessStore platform.AccessTokenStorage, 
 		return nil, err
 	}
 	appStore := newOpenPlatformStorage(accessStore, m.App())
-	return platform.NewOpenPlatform(env.Appid, env.AppSecret, appStore, msgCrypt), nil
+	return platform.NewOpenPlatform(env.Appid, env.AppSecret, appStore, env.MessageVerifyToken, msgCrypt), nil
 }
