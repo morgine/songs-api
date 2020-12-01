@@ -1,0 +1,57 @@
+# postgres 数据库配置
+[postgres]
+# 连接地址
+host = "127.0.0.1"
+# 连接端口
+port = 5432
+# 用户名
+user = "postgres"
+# 密码
+password = "123456"
+# 数据库
+db_name = "songs"
+# SSL模式
+ssl_mode = "disable"
+# 最长等待断开时间(单位: 秒), 如果该值为 0, 则不限制时间
+max_lifetime = 0
+# 最多打开数据库的连接数量, 如果该值为 0, 则不限制连接数量
+max_open_conns = 10
+# 连接池中最多空闲链接数量, 如果该值为 0, 则不保留空闲链接
+max_idle_conns = 10
+
+# gorm 配置
+[gorm]
+# 日志等级 1-Silent, 2-Error, 3-Warn, 4-Info
+log_level = 4
+# 数据库类型(目前支持的数据库类型：mysql/postgres)
+dialect = "postgres"
+# 数据库表名前缀
+table_prefix = ""
+# 使用单数表名
+singular_table = false
+
+# 开放平台配置
+[open-platform]
+# 加密 aes token
+aes_token = ""
+# 加密 aes key
+encoding_aes_key = ""
+# app secret
+app_secret = ""
+# appid
+appid = ""
+
+# 广告平台配置
+[advert-platform]
+client_id = "1111248144"
+secret = "STjunD0EzuWeSpXm"
+
+# access token redis 客户端，包括开放平台及广告平台
+[access-token-redis]
+addr = ":6379"
+db = 1
+
+# 管理员会话存储
+[admin-redis]
+addr = ":6379"
+db = 2
