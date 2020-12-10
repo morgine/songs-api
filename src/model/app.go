@@ -22,15 +22,15 @@ type App struct {
 	Signature string
 }
 
-type AppGorm struct {
-	g *Gorm
+type AppModel struct {
+	g *Model
 }
 
-func (g *Gorm) App() *AppGorm {
-	return &AppGorm{g: g}
+func (m *Model) App() *AppModel {
+	return &AppModel{g: m}
 }
 
-func (g *AppGorm) SaveAPP(appid string, app *App) error {
+func (g *AppModel) SaveAPP(appid string, app *App) error {
 	app.ID = 0
 	exist := &App{}
 	err := g.g.First(exist, Where("appid=?", appid))
@@ -44,23 +44,23 @@ func (g *AppGorm) SaveAPP(appid string, app *App) error {
 	}
 }
 
-func (g *AppGorm) CountApps(c ...Condition) (total int64, err error) {
+func (g *AppModel) CountApps(c ...Condition) (total int64, err error) {
 	return g.g.Count(&App{}, c...)
 }
 
-func (g *AppGorm) GetAppsByAppids(appids []string) (apps []*App, err error) {
+func (g *AppModel) GetAppsByAppids(appids []string) (apps []*App, err error) {
 	return g.GetApps(ConditionFunc(func(db *gorm.DB) *gorm.DB {
 		return db.Where("appid in (?)", appids)
 	}))
 }
 
-func (g *AppGorm) GetApps(c ...Condition) (apps []*App, err error) {
+func (g *AppModel) GetApps(c ...Condition) (apps []*App, err error) {
 	err = g.g.Find(&apps, c...)
 	return
 }
 
 // 重置所有 APP, 参数 apps 必须一次性包含所有已授权的 APP 信息，该操作会删除多余的 APP，并尝试更新或创建新的 APP 信息
-func (g *AppGorm) ResetApps(apps []*App) (err error) {
+func (g *AppModel) ResetApps(apps []*App) (err error) {
 	var appids []string
 	for _, app := range apps {
 		appids = append(appids, app.Appid)
@@ -80,10 +80,16 @@ func (g *AppGorm) ResetApps(apps []*App) (err error) {
 	return nil
 }
 
-func (g *AppGorm) DelAppByAppid(appid string) (err error) {
+func (g *AppModel) DelAppByAppid(appid string) (err error) {
 	return g.DelApps(Where("appid=?", appid))
 }
 
-func (g *AppGorm) DelApps(c ...Condition) (err error) {
+type InIDs []int
+
+func (i InIDs) AppendCondition(db *gorm.DB) *gorm.DB {
+	return db.Where("id in (?)", i)
+}
+
+func (g *AppModel) DelApps(c ...Condition) (err error) {
 	return g.g.Delete(&App{}, c...)
 }

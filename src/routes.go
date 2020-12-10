@@ -8,10 +8,10 @@ import (
 	"github.com/morgine/log"
 	"github.com/morgine/pkg/admin"
 	"github.com/morgine/songs/src/env"
+	"github.com/morgine/songs/src/handler"
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 	"time"
 )
@@ -19,24 +19,25 @@ import (
 func Run() {
 	// 加载配置文件
 	configFile := flag.String("c", "config.toml", "配置文件")
-	appVerifiesDir := flag.String("verifies-dir", "verifies", "开放平台验证文件存放目录")
-	addr := flag.String("addr", ":9879", "监听地址")
+	addr := flag.String("a", ":9879", "监听地址")
 	flag.Parse()
 	handlers, release := env.LoadEnv(*configFile)
 	defer release()
+	// 注册默认管理员账号
 	registerDefaultAdmin(handlers.Admin)
 	// 注册路由
 	engine := gin.New()
 
 	// 处理共开放平台验证文件
-	engine.NoRoute(func(ctx *gin.Context) {
-		path := ctx.Request.URL.Path
-		if ext := filepath.Ext(path); ext == ".txt" {
-			http.ServeFile(ctx.Writer, ctx.Request, filepath.Join(*appVerifiesDir, path))
-		} else {
-			http.NotFound(ctx.Writer, ctx.Request)
-		}
-	})
+	//engine.NoRoute(func(ctx *gin.Context) {
+	//	path := ctx.Request.URL.Path
+	//	if ext := filepath.Ext(path); ext == ".txt" {
+	//		http.ServeFile(ctx.Writer, ctx.Request, filepath.Join(*appVerifiesDir, path))
+	//	} else {
+	//		http.FileServer()
+	//		http.NotFound(ctx.Writer, ctx.Request)
+	//	}
+	//})
 
 	engine.Use(gin.Logger())
 
@@ -48,11 +49,12 @@ func Run() {
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))
-	noAuth := engine.Group("/")
-	adminAuth := engine.Group("/").Use(handlers.Admin.Auth("Authorization"))
+	v1Path := "/v1"
+	noAuth := engine.Group(v1Path)
+	adminAuth := engine.Group(v1Path).Use(handlers.Admin.Auth("Authorization"))
 
 	{
-		adminAuth.GET("/admin/info", handlers.Admin.GetLoginAdmin)
+		adminAuth.GET("/info", handlers.Admin.GetLoginAdmin)
 		noAuth.POST("/login", handlers.Admin.Login())
 		adminAuth.GET("/logout", handlers.Admin.Logout)
 		adminAuth.PUT("/reset", handlers.Admin.ResetPassword())
@@ -63,24 +65,53 @@ func Run() {
 		noAuth.POST("/listen-message/:appid", handlers.OpenPlatform.ListenMessage(func(ctx *gin.Context) string {
 			return ctx.Param("appid")
 		}))
-		noAuth.GET("/app-authorizer-url", handlers.OpenPlatform.GetAppAuthorizerUrl("/listen-authorizer-code"))
-		noAuth.GET("/listen-app-authorizer-code", handlers.OpenPlatform.ListenAppAuthorizerCode)
-		adminAuth.GET("/reset-apps", handlers.OpenPlatform.ResetAppAuthorizers)
+		noAuth.GET("/app-authorizer-url", handlers.OpenPlatform.ComponentLoginPage(v1Path+"/listen-authorizer-code"))
+		noAuth.GET("/listen-app-authorizer-code", handlers.OpenPlatform.ListenLoginPage)
+		adminAuth.GET("/reset-apps", handlers.OpenPlatform.MigrateApps)
 		adminAuth.GET("/count-apps", handlers.OpenPlatform.CountApps)
 		adminAuth.GET("/apps", handlers.OpenPlatform.GetApps())
-		adminAuth.GET("/user-summary", handlers.OpenPlatform.GetUserSummary())
-		adminAuth.GET("/user-cumulate", handlers.OpenPlatform.GetUserCumulate())
+		adminAuth.DELETE("/apps", handlers.OpenPlatform.DelApps())
+		adminAuth.GET("/user-statistics", handlers.OpenPlatform.GetUserStatistics())
+	}
+
+	{
+		adminAuth.GET("/big-picture/count", handlers.OpenPlatform.CountImages(handler.MsgPictureBig))
+		adminAuth.GET("/big-pictures", handlers.OpenPlatform.GetImages(handler.MsgPictureBig))
+		adminAuth.PUT("/big-pictures", handlers.OpenPlatform.UploadImages(handler.MsgPictureBig))
+		adminAuth.DELETE("/big-pictures", handlers.OpenPlatform.DelImages(handler.MsgPictureBig))
+	}
+
+	{
+		noAuth.GET("/picture/:filename", handlers.OpenPlatform.ServeTempImage(
+			func(host, file string) (url string, err error) {
+				return v1Path + "/picture/" + file, nil
+			},
+			func(ctx *gin.Context) (file string) {
+				return ctx.Param("filename")
+			},
+		))
+	}
+
+	{
+		adminAuth.GET("/mini-program-card", handlers.OpenPlatform.GetMiniProgramCard())
+		adminAuth.PUT("/mini-program-card", handlers.OpenPlatform.SaveMiniProgramCard())
+		adminAuth.DELETE("/mini-program-card", handlers.OpenPlatform.DelMiniProgramCard())
+	}
+
+	{
+		adminAuth.GET("/user-tag", handlers.OpenPlatform.GetUserTag())
+		adminAuth.PUT("/user-tag", handlers.OpenPlatform.SaveUserTag())
+
 	}
 
 	{
 		adminAuth.GET("/check-advert-authorized", handlers.AdvertPlatform.CheckAdvertAuthorize)
 		var listenCodeRoute = "/listen-advert-authorizer-code"
-		noAuth.GET("/advert-authorizer-url", handlers.AdvertPlatform.GetAdvertAuthorizerUrl(listenCodeRoute))
-		noAuth.GET(listenCodeRoute, handlers.AdvertPlatform.ListenAdvertAuthorizerCode(listenCodeRoute))
+		noAuth.GET("/advert-authorizer-url", handlers.AdvertPlatform.GetAdvertAuthorizerUrl(v1Path+listenCodeRoute))
+		noAuth.GET(listenCodeRoute, handlers.AdvertPlatform.ListenAdvertAuthorizerCode(v1Path+listenCodeRoute))
 		adminAuth.GET("/daily-reports-level-fields", handlers.AdvertPlatform.GetDailyReportsLevelFields)
 		adminAuth.POST("/daily-reports", handlers.AdvertPlatform.GetDailyReports)
 	}
-
 	serveHttp(*addr, engine)
 }
 

@@ -1,5 +1,8 @@
 [server]
+# 服务器地址
 host = "http://localhost:9879"
+# 上传文件地址，生产环境中需要写绝对地址
+upload = "upload"
 
 # postgres 数据库配置
 [postgres]
@@ -8,7 +11,7 @@ host = "127.0.0.1"
 # 连接端口
 port = 5432
 # 用户名
-user = "songs"
+user = "postgres"
 # 密码
 password = "123456"
 # 数据库

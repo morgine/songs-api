@@ -53,10 +53,10 @@ func (r *accessTokenStorage) GetAccessToken(key string) (token *platform.AccessT
 
 type openPlatformStorage struct {
 	platform.AccessTokenStorage
-	gorm *model.AppGorm
+	gorm *model.AppModel
 }
 
-func newOpenPlatformStorage(tokenStore platform.AccessTokenStorage, gorm *model.AppGorm) *openPlatformStorage {
+func newOpenPlatformStorage(tokenStore platform.AccessTokenStorage, gorm *model.AppModel) *openPlatformStorage {
 	return &openPlatformStorage{
 		AccessTokenStorage: tokenStore,
 		gorm:               gorm,

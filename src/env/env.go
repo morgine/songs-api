@@ -2,6 +2,7 @@ package env
 
 import (
 	"fmt"
+	"github.com/gin-gonic/gin"
 	admin2 "github.com/morgine/pkg/admin"
 	"github.com/morgine/pkg/config"
 	"github.com/morgine/pkg/database/orm"
@@ -13,7 +14,8 @@ import (
 )
 
 type ServerEnv struct {
-	Host string `toml:"host"`
+	Host   string `toml:"host"`
+	Upload string `toml:"upload"`
 }
 
 type OpenPlatformEnv struct {
@@ -51,14 +53,15 @@ func LoadEnv(configFile string) (handlers *Handlers, release func() error) {
 	if err != nil {
 		panic(err)
 	}
-	//createTestApps(orm)
 	accessRedisClient, err := redis.NewClient("access-token-redis", configs)
 	if err != nil {
 		panic(err)
 	}
-	var m = model.NewGorm(orm)
-	openAccessStore := newAccessTokenStorage("app_", accessRedisClient)
-	openPlatform, err := NewOpenPlatform("open-platform", openAccessStore, m, configs)
+	cacheRedisClient, err := redis.NewClient("cache-redis", configs)
+	if err != nil {
+		panic(err)
+	}
+	openClientConfigs, err := initOpenClientConfigs("open-platform", orm, accessRedisClient, configs)
 	if err != nil {
 		panic(err)
 	}
@@ -82,7 +85,21 @@ func LoadEnv(configFile string) (handlers *Handlers, release func() error) {
 	if err != nil {
 		panic(err)
 	}
-	openPlatformHandler, err := handler.NewOpenPlatform(openPlatform, orm, serverEnv.Host)
+	uploadHandlers, err := handler.NewMultiFileHandlers(
+		orm,
+		serverEnv.Upload,
+		func(ctx *gin.Context) (userID int, ok bool) {
+			return admin.GetAuthAdmin(ctx)
+		},
+	)
+	openPlatformHandler, err := handler.NewOpenPlatform(
+		openClientConfigs,
+		orm,
+		cacheRedisClient,
+		serverEnv.Host,
+		serverEnv.Upload,
+		uploadHandlers,
+	)
 	if err != nil {
 		panic(err)
 	}
@@ -100,6 +117,7 @@ func LoadEnv(configFile string) (handlers *Handlers, release func() error) {
 		}
 }
 
+// 创建测试APP账号
 func createTestApps(db *gorm.DB) {
 	for i := 0; i < 99; i++ {
 		app := &model.App{

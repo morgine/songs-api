@@ -13,10 +13,11 @@ require (
 	github.com/morgine/log v0.0.0-20200723085359-3eb4c2be1006
 	github.com/morgine/pkg v0.0.0-20201128121612-22825333d18f
 	github.com/morgine/redis v0.0.0-20201112085733-0090621c3b52 // indirect
-	github.com/morgine/service v0.0.0-20200716030345-bd68903c522c
+	github.com/morgine/wechat_sdk v0.0.0-20201206060108-691158a545e7
 	github.com/tencentad/marketing-api-go-sdk v1.4.0 // indirect
 	golang.org/x/crypto v0.0.0-20201117144127-c1f2f97bffc9
 	gorm.io/gorm v1.20.7
 )
 
 replace github.com/morgine/pkg v0.0.0-20201128121612-22825333d18f => ../pkg
+replace github.com/morgine/wechat_sdk v0.0.0-20201206060108-691158a545e7 => ../wechat_sdk
