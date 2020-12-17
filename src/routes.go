@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -38,8 +39,17 @@ func Run() {
 	//		http.NotFound(ctx.Writer, ctx.Request)
 	//	}
 	//})
+	v1Path := "/v1"
+	listenMsgRoute := "/listen-message/:appid"
+	appidGetter := func(ctx *gin.Context) string {
+		return ctx.Param("appid")
+	}
 
-	engine.Use(gin.Logger())
+	engine.Use(WithSkipHandler(func(ctx *gin.Context) (skip bool) {
+		return strings.Contains(ctx.Request.URL.Path, "listen-message") && appidGetter(ctx) != "wx2d13afe6dfb82892"
+	}, gin.Logger()))
+
+	engine.Use(gin.Recovery())
 
 	engine.Use(cors.New(cors.Config{
 		// Set cors and db middleware
@@ -49,24 +59,23 @@ func Run() {
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))
-	v1Path := "/v1"
 	noAuth := engine.Group(v1Path)
-	adminAuth := engine.Group(v1Path).Use(handlers.Admin.Auth("Authorization"))
-
+	adminAuth := engine.Group(v1Path).Use(handlers.Admin.Auth)
 	{
-		adminAuth.GET("/info", handlers.Admin.GetLoginAdmin)
+		noAuth.GET("/proxy", handlers.Proxy.ProxyImage)
+	}
+	{
+		adminAuth.GET("/info", handlers.Admin.Info)
 		noAuth.POST("/login", handlers.Admin.Login())
 		adminAuth.GET("/logout", handlers.Admin.Logout)
-		adminAuth.PUT("/reset", handlers.Admin.ResetPassword())
+		adminAuth.PUT("/reset", handlers.Admin.Reset())
 	}
 
 	{
 		noAuth.POST("/listen-verify-ticket", handlers.OpenPlatform.ListenVerifyTicket)
-		noAuth.POST("/listen-message/:appid", handlers.OpenPlatform.ListenMessage(func(ctx *gin.Context) string {
-			return ctx.Param("appid")
-		}))
+		noAuth.POST(listenMsgRoute, handlers.OpenPlatform.ListenMessage(appidGetter))
 		noAuth.GET("/app-authorizer-url", handlers.OpenPlatform.ComponentLoginPage(v1Path+"/listen-authorizer-code"))
-		noAuth.GET("/listen-app-authorizer-code", handlers.OpenPlatform.ListenLoginPage)
+		noAuth.GET("/listen-authorizer-code", handlers.OpenPlatform.ListenLoginPage)
 		adminAuth.GET("/reset-apps", handlers.OpenPlatform.MigrateApps)
 		adminAuth.GET("/count-apps", handlers.OpenPlatform.CountApps)
 		adminAuth.GET("/apps", handlers.OpenPlatform.GetApps())
@@ -96,6 +105,12 @@ func Run() {
 		adminAuth.GET("/mini-program-card", handlers.OpenPlatform.GetMiniProgramCard())
 		adminAuth.PUT("/mini-program-card", handlers.OpenPlatform.SaveMiniProgramCard())
 		adminAuth.DELETE("/mini-program-card", handlers.OpenPlatform.DelMiniProgramCard())
+	}
+
+	{
+		adminAuth.GET("/articles", handlers.OpenPlatform.GetArticles())
+		adminAuth.PUT("/articles", handlers.OpenPlatform.SaveArticles())
+		adminAuth.DELETE("/articles", handlers.OpenPlatform.DelArticles())
 	}
 
 	{
@@ -152,8 +167,8 @@ func serveHttp(addr string, engine *gin.Engine) {
 	log.Init.Println("Server exiting")
 }
 
-func registerDefaultAdmin(handler *admin.Handler) {
-	err := handler.RegisterAdmin("admin", "admin")
+func registerDefaultAdmin(ah *handler.Admin) {
+	err := ah.Register("admin", "admin")
 	if err != nil && err != admin.ErrUsernameAlreadyExist {
 		panic(err)
 	}

@@ -1,6 +1,5 @@
 [server]
-# 服务器地址
-host = "http://localhost:9879"
+host = "http://console.cy66688.cn"
 # 上传文件地址，生产环境中需要写绝对地址
 upload = "upload"
 
@@ -25,33 +24,10 @@ max_open_conns = 10
 # 连接池中最多空闲链接数量, 如果该值为 0, 则不保留空闲链接
 max_idle_conns = 10
 
-# mysql 数据库配置
-[mysql]
-# 连接地址
-host = "127.0.0.1"
-# 连接端口
-port = 3306
-# 用户名
-user = "songs"
-# 密码
-password = "y4fDf8E6cH2xZmPr"
-# 数据库
-db_name = "songs"
-# 连接参数
-parameters = "charset=utf8mb4&parseTime=True&loc=Local&allowNativePasswords=true"
-# 最长等待断开时间(单位: 秒), 如果该值为 0, 则不限制时间
-max_lifetime = 0
-# 最多打开数据库的连接数量, 如果该值为 0, 则不限制连接数量
-max_open_conns = 10
-# 连接池中最多空闲链接数量, 如果该值为 0, 则不保留空闲链接
-max_idle_conns = 10
-
 # gorm 配置
 [gorm]
 # 日志等级 1-Silent, 2-Error, 3-Warn, 4-Info
 log_level = 3
-# 数据库类型(目前支持的数据库类型：mysql/postgres)
-dialect = "mysql"
 # 数据库表名前缀
 table_prefix = ""
 # 使用单数表名
@@ -72,8 +48,8 @@ message_verify_token = "e44r4g6BpsA2fRPPmV4BmG15o6vXGffr"
 
 # 广告平台配置
 [advert-platform]
-client_id = "1111248144"
-secret = "STjunD0EzuWeSpXm"
+client_id = "1111204225"
+secret = "1RBQISu75iaqc7Be"
 
 # access token redis 客户端，包括开放平台及广告平台
 [access-token-redis]

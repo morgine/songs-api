@@ -3,47 +3,46 @@ package cache
 import (
 	"encoding/json"
 	"github.com/morgine/wechat_sdk/pkg/material"
-	"time"
 )
 
-type TempMaterialClient struct {
+type MaterialClient struct {
 	keyPrefix string
 	engine    Engine
 }
 
-func NewTempMaterialClient(keyPrefix string, engine Engine) *TempMaterialClient {
-	return &TempMaterialClient{
+func NewMaterialClient(keyPrefix string, engine Engine) *MaterialClient {
+	return &MaterialClient{
 		keyPrefix: keyPrefix,
 		engine:    engine,
 	}
 }
 
-func (tm *TempMaterialClient) Get(appid, filename string) (*material.TempMedia, error) {
+func (tm *MaterialClient) Get(appid, filename string) (*material.UploadedMedia, error) {
 	data, err := tm.engine.Get(tm.key(appid, filename))
 	if err != nil {
 		return nil, err
 	}
 	if len(data) > 0 {
-		tm := &material.TempMedia{}
-		err = json.Unmarshal(data, tm)
+		um := &material.UploadedMedia{}
+		err = json.Unmarshal(data, um)
 		if err != nil {
 			return nil, err
 		} else {
-			return tm, nil
+			return um, nil
 		}
 	} else {
 		return nil, nil
 	}
 }
 
-func (tm *TempMaterialClient) key(appid, filename string) string {
+func (tm *MaterialClient) key(appid, filename string) string {
 	return tm.keyPrefix + appid + "_" + filename
 }
 
-func (tm *TempMaterialClient) Set(appid, filename string, m *material.TempMedia) error {
+func (tm *MaterialClient) Set(appid, filename string, m *material.UploadedMedia) error {
 	data, err := json.Marshal(m)
 	if err != nil {
 		return err
 	}
-	return tm.engine.Set(tm.key(appid, filename), data, time.Duration(m.ExpireIn)*time.Second)
+	return tm.engine.Set(tm.key(appid, filename), data, 0)
 }

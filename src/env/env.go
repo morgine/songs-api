@@ -1,7 +1,6 @@
 package env
 
 import (
-	"fmt"
 	"github.com/gin-gonic/gin"
 	admin2 "github.com/morgine/pkg/admin"
 	"github.com/morgine/pkg/config"
@@ -9,8 +8,6 @@ import (
 	"github.com/morgine/pkg/redis"
 	"github.com/morgine/pkg/session"
 	"github.com/morgine/songs/src/handler"
-	"github.com/morgine/songs/src/model"
-	"gorm.io/gorm"
 )
 
 type ServerEnv struct {
@@ -32,9 +29,10 @@ type AdvertPlatformEnv struct {
 }
 
 type Handlers struct {
-	Admin          *admin2.Handler
+	Admin          *handler.Admin
 	OpenPlatform   *handler.OpenPlatform
 	AdvertPlatform *handler.AdvertPlatform
+	Proxy          *handler.Proxy
 }
 
 func LoadEnv(configFile string) (handlers *Handlers, release func() error) {
@@ -75,12 +73,11 @@ func LoadEnv(configFile string) (handlers *Handlers, release func() error) {
 	if err != nil {
 		panic(err)
 	}
-	admin, err := admin2.NewHandler(&admin2.Options{
+	admin, err := handler.NewAdmin(&admin2.Options{
 		DB:          orm,
 		Session:     session.NewRedisStorage("admin_", adminRedisClient),
 		AuthExpires: 86400,
 		AesCryptKey: []byte("change this pass"),
-		Sender:      adminSender(0),
 	})
 	if err != nil {
 		panic(err)
@@ -89,7 +86,7 @@ func LoadEnv(configFile string) (handlers *Handlers, release func() error) {
 		orm,
 		serverEnv.Upload,
 		func(ctx *gin.Context) (userID int, ok bool) {
-			return admin.GetAuthAdmin(ctx)
+			return admin.GetLoginAdminID(ctx)
 		},
 	)
 	openPlatformHandler, err := handler.NewOpenPlatform(
@@ -106,6 +103,7 @@ func LoadEnv(configFile string) (handlers *Handlers, release func() error) {
 	advertPlatformHandler := handler.NewAdvertPlatform(advertPlatform, serverEnv.Host)
 	return &Handlers{
 			Admin:          admin,
+			Proxy:          &handler.Proxy{},
 			OpenPlatform:   openPlatformHandler,
 			AdvertPlatform: advertPlatformHandler,
 		}, func() error {
@@ -115,22 +113,4 @@ func LoadEnv(configFile string) (handlers *Handlers, release func() error) {
 			adminRedisClient.Close()
 			return nil
 		}
-}
-
-// 创建测试APP账号
-func createTestApps(db *gorm.DB) {
-	for i := 0; i < 99; i++ {
-		app := &model.App{
-			ID:            0,
-			Appid:         fmt.Sprintf("appid%3d", i),
-			NickName:      fmt.Sprintf("nickname%3d", i),
-			HeadImg:       fmt.Sprintf("headImg%3d", i),
-			UserName:      fmt.Sprintf("UserName%3d", i),
-			PrincipalName: fmt.Sprintf("PrincipalName%3d", i),
-			Alias:         fmt.Sprintf("Alias%3d", i),
-			QrcodeUrl:     fmt.Sprintf("QrcodeUrl%3d", i),
-			Signature:     fmt.Sprintf("Signature%3d", i),
-		}
-		db.Create(app)
-	}
 }

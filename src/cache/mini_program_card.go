@@ -6,6 +6,7 @@ import (
 
 type MiniProgramCard struct {
 	Title              string
+	Appid              string
 	PagePath           string
 	ThumbMediaFilename string
 }
@@ -22,18 +23,18 @@ func NewMiniProgramCardClient(keyPrefix string, engine Engine) *MiniProgramCardC
 	}
 }
 
-func (tm *MiniProgramCardClient) Get(componentAppid string) (*MiniProgramCard, error) {
+func (tm *MiniProgramCardClient) Get(componentAppid string) ([]*MiniProgramCard, error) {
 	data, err := tm.engine.Get(tm.key(componentAppid))
 	if err != nil {
 		return nil, err
 	}
 	if len(data) > 0 {
-		tm := &MiniProgramCard{}
-		err = json.Unmarshal(data, tm)
+		var cards []*MiniProgramCard
+		err = json.Unmarshal(data, &cards)
 		if err != nil {
 			return nil, err
 		} else {
-			return tm, nil
+			return cards, nil
 		}
 	} else {
 		return nil, nil
@@ -44,8 +45,8 @@ func (tm *MiniProgramCardClient) key(appid string) string {
 	return tm.keyPrefix + appid
 }
 
-func (tm *MiniProgramCardClient) Set(componentAppid string, m *MiniProgramCard) error {
-	data, err := json.Marshal(m)
+func (tm *MiniProgramCardClient) Set(componentAppid string, cards []*MiniProgramCard) error {
+	data, err := json.Marshal(cards)
 	if err != nil {
 		return err
 	}

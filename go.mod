@@ -3,21 +3,22 @@ module github.com/morgine/songs
 go 1.15
 
 require (
-	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/gin-contrib/cors v1.3.1
 	github.com/gin-gonic/gin v1.6.3
 	github.com/go-redis/redis/v8 v8.4.0
 	github.com/google/go-querystring v1.0.0
-	github.com/morgine/cfg v0.0.0-20200804152015-cd175a04c4d8
-	github.com/morgine/database v0.0.0-20201112022355-001078b66b4d
+	github.com/jackc/pgx/v4 v4.9.2 // indirect
 	github.com/morgine/log v0.0.0-20200723085359-3eb4c2be1006
-	github.com/morgine/pkg v0.0.0-20201128121612-22825333d18f
-	github.com/morgine/redis v0.0.0-20201112085733-0090621c3b52 // indirect
-	github.com/morgine/wechat_sdk v0.0.0-20201206060108-691158a545e7
-	github.com/tencentad/marketing-api-go-sdk v1.4.0 // indirect
-	golang.org/x/crypto v0.0.0-20201117144127-c1f2f97bffc9
+	github.com/morgine/pkg v0.0.0-20201210141122-1eaea814a846
+	github.com/morgine/wechat_sdk v0.0.0-20201210141225-4198e3ac4f37
+	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
+	github.com/orivil/wechat v0.0.0-20200318075742-9daadcc7fab3
+	golang.org/x/text v0.3.4 // indirect
+	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
+	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
 	gorm.io/gorm v1.20.7
 )
 
-replace github.com/morgine/pkg v0.0.0-20201128121612-22825333d18f => ../pkg
-replace github.com/morgine/wechat_sdk v0.0.0-20201206060108-691158a545e7 => ../wechat_sdk
+replace github.com/morgine/wechat_sdk => ../wechat_sdk
+
+replace github.com/morgine/pkg => ../morgine/pkg
