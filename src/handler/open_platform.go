@@ -256,13 +256,31 @@ type Statistics struct {
 	CancelRate        float64 `json:"cancel_rate"`         // 取关率, cancel_user/cumulate_user
 	ReqSuccCount      int     `json:"req_succ_count"`      // 拉取量
 	ExposureCount     int     `json:"exposure_count"`      // 曝光量
-	ExposureRate      float64 `json:"exposure_rate"`       // 曝光率
+	ExposureRate      float64 `json:"exposure_rate"`       // 曝光率, exposure_count/req_succ_count
 	ClickCount        int     `json:"click_count"`         // 点击量
-	ClickRate         float64 `json:"click_rate"`          // 点击率
+	ClickRate         float64 `json:"click_rate"`          // 点击率, click_count/exposure_count
 	Outcome           int     `json:"outcome"`             // 支出(分)
 	Income            int     `json:"income"`              // 收入(分)
-	IncomeOutcomeRate float64 `json:"income_outcome_rate"` // 收入支出比率
-	Ecpm              int     `json:"ecpm"`                // 广告千次曝光收益(分)
+	IncomeOutcomeRate float64 `json:"income_outcome_rate"` // 收入支出比率, income/outcome
+	Ecpm              float64 `json:"ecpm"`                // 广告千次曝光收益(分), 1000/exposure_count*income
+}
+
+func (s *Statistics) initRate() {
+	if s.CumulateUser > 0 {
+		s.CancelRate = float64(s.CancelUser) / float64(s.CumulateUser)
+	}
+	if s.ReqSuccCount > 0 {
+		s.ExposureRate = float64(s.ExposureCount) / float64(s.ReqSuccCount)
+	}
+	if s.ExposureCount > 0 {
+		s.ClickRate = float64(s.ClickCount) / float64(s.ExposureCount)
+	}
+	if s.Outcome > 0 {
+		s.IncomeOutcomeRate = float64(s.Income) / float64(s.Outcome)
+	}
+	if s.ExposureCount > 0 && s.Income > 0 {
+		s.Ecpm = 1000 * float64(s.Income) / float64(s.ExposureCount)
+	}
 }
 
 // 公众号统计
@@ -348,26 +366,17 @@ func (ds *DatesStatistics) AddAdvertStatistics(appid, nickname string, us *stati
 		for _, l := range us.List {
 			var dateStatistics *DateStatistics = ds.initDateData(l.Date)
 			var appStatistics *AppStatistics = dateStatistics.initAppData(appid, nickname, "")
-			appStatistics.ReqSuccCount = l.ReqSuccCount
-			appStatistics.ExposureCount = l.ExposureCount
-			appStatistics.ExposureRate = l.ExposureRate
-			appStatistics.ClickCount = l.ClickCount
-			appStatistics.ClickRate = l.ClickRate
-			appStatistics.Income = l.Income
-			appStatistics.Ecpm = l.Ecpm
+			appStatistics.ReqSuccCount += l.ReqSuccCount   // 拉取量
+			appStatistics.ExposureCount += l.ExposureCount // 曝光量
+			appStatistics.ClickCount += l.ClickCount       // 点击量
+			appStatistics.Income += l.Income               // 收入
+			appStatistics.initRate()                       // 比率换算
 
-			dateStatistics.Data.ExposureCount += l.ExposureCount
-			if l.ExposureRate > 0 {
-				dateStatistics.TotalExposureCount += (1 / l.ExposureRate) * float64(l.ExposureCount)
-				dateStatistics.Data.ExposureRate = float64(dateStatistics.Data.ExposureCount) / dateStatistics.TotalExposureCount
-			}
-			dateStatistics.Data.ClickCount += l.ClickCount
-			if l.ClickRate > 0 {
-				dateStatistics.TotalClickCount += (1 / l.ClickRate) * float64(l.ClickCount)
-				dateStatistics.Data.ClickRate = float64(dateStatistics.Data.ClickCount) / dateStatistics.TotalClickCount
-			}
-			dateStatistics.Data.Income += l.Income
-			dateStatistics.Data.Ecpm += l.Ecpm
+			dateStatistics.Data.ReqSuccCount += l.ReqSuccCount   // 拉取量
+			dateStatistics.Data.ExposureCount += l.ExposureCount // 曝光量
+			dateStatistics.Data.ClickCount += l.ClickCount       // 点击量
+			dateStatistics.Data.Income += l.Income               // 收入
+			dateStatistics.Data.initRate()                       // 比率换算
 		}
 	}
 }
@@ -419,16 +428,25 @@ func (op *OpenPlatform) GetUserStatistics() gin.HandlerFunc {
 							}
 							// 广告统计
 							var as *statistics.PublisherAdPosGeneralResponse
-							as, err = client.GetPublisherAdPosGeneral("", statistics.PublisherCommonOptions{
-								Page:      1,
-								PageSize:  90,
-								StartDate: beginDate,
-								EndDate:   endDate,
-							})
-							if err != nil {
-								datesStatistics.AppendAppError(app.Appid, app.NickName, err, beginDate)
-							} else {
-								datesStatistics.AddAdvertStatistics(app.Appid, app.NickName, as)
+							page, pageSize := 1, 90
+							for {
+								as, err = client.GetPublisherAdPosGeneral("", statistics.PublisherCommonOptions{
+									Page:      page,
+									PageSize:  pageSize,
+									StartDate: beginDate,
+									EndDate:   endDate,
+								})
+								if err != nil {
+									datesStatistics.AppendAppError(app.Appid, app.NickName, err, beginDate)
+									break
+								} else {
+									datesStatistics.AddAdvertStatistics(app.Appid, app.NickName, as)
+									if page*pageSize < as.TotalNum {
+										page++
+									} else {
+										break
+									}
+								}
 							}
 						}
 						wg.Done()
