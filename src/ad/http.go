@@ -52,21 +52,8 @@ func HttpPost(uri string, params Params, response interface{}) error {
 	return nil
 }
 
-func HttpGet(uri string, params Params, response interface{}) error {
-	values, err := jsonUrlValues(params)
-	if err != nil {
-		return err
-	}
-	Url, err := url.Parse(uri)
-	if err != nil {
-		return err
-	}
-	query := Url.Query()
-	for s, i := range values {
-		query[s] = i
-	}
-	Url.RawQuery = query.Encode()
-	resp, err := http.Get(Url.String())
+func HttpGet(uri string, response interface{}) error {
+	resp, err := http.Get(uri)
 	if err != nil {
 		return err
 	}

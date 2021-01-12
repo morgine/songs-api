@@ -6,7 +6,6 @@ import (
 	"net/http"
 )
 
-
 type Message struct {
 	Status  message.Status
 	Message string
@@ -22,7 +21,7 @@ func SendMessage(ctx *gin.Context, status message.Status, message string) {
 
 func SendJSON(ctx *gin.Context, data interface{}) {
 	ctx.AbortWithStatusJSON(http.StatusOK, Message{
-		Data:   data,
+		Data: data,
 	})
 }
 
@@ -38,4 +37,15 @@ func SendError(ctx *gin.Context, err error) {
 			Message: err.Error(),
 		})
 	}
+}
+
+func SendErrors(ctx *gin.Context, err ...error) {
+	var msg string
+	for _, e := range err {
+		msg += e.Error() + "\n"
+	}
+	ctx.AbortWithStatusJSON(http.StatusOK, Message{
+		Status:  message.ErrUnknown,
+		Message: msg,
+	})
 }

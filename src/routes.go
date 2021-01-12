@@ -114,9 +114,46 @@ func Run() {
 	}
 
 	{
+		adminAuth.GET("/menus", handlers.OpenPlatform.GetMenus())
+		adminAuth.PUT("/menus", handlers.OpenPlatform.SaveMenus())
+		adminAuth.POST("/app-menu", handlers.OpenPlatform.GenerateMenu())
+		adminAuth.DELETE("/app-menu", handlers.OpenPlatform.RemoveMenu())
+	}
+
+	{
 		adminAuth.GET("/user-tag", handlers.OpenPlatform.GetUserTag())
 		adminAuth.PUT("/user-tag", handlers.OpenPlatform.SaveUserTag())
+	}
 
+	{
+		adminAuth.GET("/app-groups", handlers.App.GetAppGroups())
+		adminAuth.POST("/app-group", handlers.App.CreateAppGroup())
+		adminAuth.DELETE("/app-group", handlers.App.DeleteAppGroup())
+		adminAuth.GET("/group-apps", handlers.App.GetGroupApps())
+		adminAuth.POST("/group-app", handlers.App.SetGroupApp())
+		adminAuth.DELETE("/group-app", handlers.App.DeleteGroupApp())
+
+		adminAuth.GET("/apps-payout", handlers.App.GetAppsPayouts())
+		adminAuth.POST("/app-payout", handlers.App.SetAppPayout())
+	}
+
+	{
+		adminAuth.GET("/subscribe/msg/groups", handlers.SubscribeMessage.GetGroups())
+		adminAuth.PUT("/subscribe/msg/group", handlers.SubscribeMessage.SaveGroup())
+		adminAuth.DELETE("/subscribe/msg/group", handlers.SubscribeMessage.DeleteGroup())
+
+		adminAuth.GET("/subscribe/msg/group/articles", handlers.SubscribeMessage.GetGroupArticles())
+		adminAuth.PUT("/subscribe/msg/group/article", handlers.SubscribeMessage.SaveGroupArticle())
+		adminAuth.DELETE("/subscribe/msg/group/article", handlers.SubscribeMessage.DeleteGroupArticle())
+
+		adminAuth.GET("/subscribe/msg/group/mini-program-cards", handlers.SubscribeMessage.GetGroupMiniProgramCards())
+		adminAuth.PUT("/subscribe/msg/group/mini-program-card", handlers.SubscribeMessage.SaveGroupMiniProgramCard())
+		adminAuth.DELETE("/subscribe/msg/group/mini-program-card", handlers.SubscribeMessage.DeleteGroupMiniProgramCard())
+
+		adminAuth.POST("/subscribe/msg/group/apply", handlers.SubscribeMessage.Apply())
+		adminAuth.DELETE("/subscribe/msg/group/cancel", handlers.SubscribeMessage.Cancel())
+		adminAuth.GET("/subscribe/msg/group/show-applied-msgs", handlers.SubscribeMessage.ShowAppMsgs())
+		adminAuth.GET("/subscribe/msg/group/applied-apps", handlers.SubscribeMessage.AppliedApps())
 	}
 
 	{

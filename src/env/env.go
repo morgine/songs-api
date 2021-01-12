@@ -29,10 +29,12 @@ type AdvertPlatformEnv struct {
 }
 
 type Handlers struct {
-	Admin          *handler.Admin
-	OpenPlatform   *handler.OpenPlatform
-	AdvertPlatform *handler.AdvertPlatform
-	Proxy          *handler.Proxy
+	Admin            *handler.Admin
+	OpenPlatform     *handler.OpenPlatform
+	SubscribeMessage *handler.SubscribeMessage
+	AdvertPlatform   *handler.AdvertPlatform
+	App              *handler.App
+	Proxy            *handler.Proxy
 }
 
 func LoadEnv(configFile string) (handlers *Handlers, release func() error) {
@@ -100,12 +102,18 @@ func LoadEnv(configFile string) (handlers *Handlers, release func() error) {
 	if err != nil {
 		panic(err)
 	}
+
+	subscribeMessage := handler.NewSubscribeMessage(openPlatformHandler, cacheRedisClient, orm)
 	advertPlatformHandler := handler.NewAdvertPlatform(advertPlatform, serverEnv.Host)
+
+	app := handler.NewApp(orm)
 	return &Handlers{
-			Admin:          admin,
-			Proxy:          &handler.Proxy{},
-			OpenPlatform:   openPlatformHandler,
-			AdvertPlatform: advertPlatformHandler,
+			Admin:            admin,
+			Proxy:            &handler.Proxy{},
+			OpenPlatform:     openPlatformHandler,
+			SubscribeMessage: subscribeMessage,
+			App:              app,
+			AdvertPlatform:   advertPlatformHandler,
 		}, func() error {
 			db, _ := orm.DB()
 			db.Close()

@@ -6,7 +6,7 @@ import (
 	"github.com/morgine/log"
 	"github.com/morgine/pkg/config"
 	"github.com/morgine/songs/src/model"
-	"github.com/morgine/wechat_sdk/pkg"
+	"github.com/morgine/wechat_sdk/pkg/open_platform"
 	"github.com/morgine/wechat_sdk/src"
 	"gorm.io/gorm"
 	"time"
@@ -64,7 +64,7 @@ type appStorage struct {
 	db *gorm.DB
 }
 
-func (a *appStorage) SaveAppInfo(appid string, info *pkg.AuthorizerInfo) error {
+func (a *appStorage) SaveAppInfo(appid string, info *open_platform.AuthorizerInfo) error {
 	app := &model.App{}
 	err := a.db.Where("appid=?", appid).Select("id").First(app).Error
 	if err != nil && err != gorm.ErrRecordNotFound {
@@ -81,14 +81,14 @@ func (a *appStorage) SaveAppInfo(appid string, info *pkg.AuthorizerInfo) error {
 	return a.db.Save(app).Error
 }
 
-func (a *appStorage) GetAppInfo(appid string) (*pkg.AuthorizerInfo, error) {
+func (a *appStorage) GetAppInfo(appid string) (*open_platform.AuthorizerInfo, error) {
 	app := &model.App{}
 	err := a.db.Session(&gorm.Session{}).Where("appid=?", appid).Select("id").First(app).Error
 	if err != nil && err != gorm.ErrRecordNotFound {
 		return nil, err
 	}
 	if app.ID > 0 {
-		return &pkg.AuthorizerInfo{
+		return &open_platform.AuthorizerInfo{
 			NickName:      app.NickName,
 			HeadImg:       app.HeadImg,
 			UserName:      app.UserName,

@@ -10,7 +10,7 @@ host = "127.0.0.1"
 # 连接端口
 port = 5432
 # 用户名
-user = "postgres"
+user = "petter"
 # 密码
 password = "123456"
 # 数据库
@@ -51,12 +51,17 @@ message_verify_token = "e44r4g6BpsA2fRPPmV4BmG15o6vXGffr"
 client_id = "1111204225"
 secret = "1RBQISu75iaqc7Be"
 
+# 缓存 redis 客户端
+[cache-redis]
+addr = ":6379"
+db = 0
+
 # access token redis 客户端，包括开放平台及广告平台
 [access-token-redis]
 addr = ":6379"
 db = 1
 
-# 管理员会话存储
+# 管理员会话 redis 客户端
 [admin-redis]
 addr = ":6379"
 db = 2

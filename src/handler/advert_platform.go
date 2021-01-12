@@ -64,7 +64,7 @@ func (ap *AdvertPlatform) GetDailyReportsLevelFields(ctx *gin.Context) {
 // 获得日报
 func (ap *AdvertPlatform) GetDailyReports(ctx *gin.Context) {
 	query := &ad.GetDailyReportsOptions{}
-	err := ctx.BindQuery(query)
+	err := ctx.Bind(query)
 	if err != nil {
 		SendError(ctx, err)
 	} else {

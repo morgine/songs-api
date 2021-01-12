@@ -59,6 +59,16 @@ func (o OrderBy) AppendCondition(db *gorm.DB) *gorm.DB {
 	return db.Order(clause.OrderByColumn{Column: clause.Column{Name: o.Column}, Desc: o.Desc})
 }
 
+type Selects []string
+
+func (s Selects) AppendCondition(db *gorm.DB) *gorm.DB {
+	if len(s) > 0 {
+		return db.Select([]string(s))
+	} else {
+		return db
+	}
+}
+
 type Condition interface {
 	AppendCondition(db *gorm.DB) *gorm.DB
 }

@@ -7,12 +7,8 @@ import (
 )
 
 func main() {
-	s := DatesStatistics{
-		{
-			Apps: []*AppStatistics{
-				{},
-			},
-		},
+	s := &Button{
+		SubButton: []Button{},
 	}
 	data, err := json.Marshal(s)
 	if err != nil {
@@ -24,38 +20,13 @@ func main() {
 	}
 }
 
-// 统计
-type Statistics struct {
-	CumulateUser      int     `json:"cumulate_user"`       // 用户总量
-	NewUser           int     `json:"new_user"`            // 新增的用户数量
-	CancelUser        int     `json:"cancel_user"`         // 取消关注的用户数量，new_user减去cancel_user即为净增用户数量
-	PositiveUser      int     `json:"positive_user"`       // 净增用户
-	CancelRate        float64 `json:"cancel_rate"`         // 取关率, cancel_user/cumulate_user
-	ReqSuccCount      int     `json:"req_succ_count"`      // 拉取量
-	ExposureCount     int     `json:"exposure_count"`      // 曝光量
-	ExposureRate      float64 `json:"exposure_rate"`       // 曝光率
-	ClickCount        int     `json:"click_count"`         // 点击量
-	ClickRate         float64 `json:"click_rate"`          // 点击率
-	Outcome           int     `json:"outcome"`             // 支出(分)
-	Income            int     `json:"income"`              // 收入(分)
-	IncomeOutcomeRate float64 `json:"income_outcome_rate"` // 收入支出比率
-	Ecpm              int     `json:"ecpm"`                // 广告千次曝光收益(分)
+type Button struct {
+	Name      string   `json:"name"`       // 菜单标题，不超过16个字节，子菜单不超过60个字节
+	Type      string   `json:"type"`       // 菜单的响应动作类型，view表示网页类型，click表示点击类型，miniprogram表示小程序类型
+	SubButton []Button `json:"sub_button"` // 子菜单, 1-5 个
+	Url       string   `json:"url"`        // view, miniprogram 类型必须, 网页 链接，用户点击菜单可打开链接，不超过1024字节。 type为miniprogram时，不支持小程序的老版本客户端将打开本url。
+	Key       string   `json:"key"`        // click, pic_sysphoto, pic_photo_or_album, pic_weixin, location_select 类型必须, 菜单KEY值，用于消息接口推送，不超过128字节
+	Appid     string   `json:"appid"`      // miniprogram 类型必须, 小程序的appid（仅认证公众号可配置）
+	Pagepath  string   `json:"pagepath"`   // miniprogram 类型必须, 小程序的页面路径
+	MediaId   string   `json:"media_id"`   // media_id, view_limited 类型必须, 调用新增永久素材接口返回的合法media_id
 }
-
-// 公众号统计
-type AppStatistics struct {
-	Appid    string     `json:"appid"`    // 公众号 appid
-	Nickname string     `json:"nickname"` // 公众号昵称
-	Errs     []string   `json:"err"`      // 错误
-	Data     Statistics `json:"data"`     // 统计数据
-}
-
-// 日期统计数据
-type DateStatistics struct {
-	Date               string           `json:"date"`                 // 统计日期
-	Data               Statistics       `json:"data"`                 // 总体统计
-	TotalExposureCount float64          `json:"total_exposure_count"` // 已曝光量加未曝光量，用于计算曝光率
-	TotalClickCount    float64          `json:"total_click_count"`    // 已点击量加未点击量，用于计算点击率
-	Apps               []*AppStatistics `json:"apps"`                 // APP 统计
-}
-type DatesStatistics []*DateStatistics // 多日期统计数据

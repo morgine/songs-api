@@ -1,6 +1,8 @@
 package ad
 
 import (
+	"encoding/json"
+	"github.com/morgine/log"
 	"math/rand"
 	"net/url"
 	"strconv"
@@ -65,21 +67,21 @@ type OrderBy struct {
 type GetDailyReportsOptions struct {
 
 	// 广告主帐号 id，有操作权限的帐号 id，不支持代理商 id
-	AccountID int `json:"account_id"`
+	AccountID string `json:"account_id,omitempty"`
 
 	// 获取报表类型级别，获取报表类型级别，腾讯广告平台广告主仅可使用：{REPORT_LEVEL_ADVERTISER, REPORT_LEVEL_CAMPAIGN, REPORT_LEVEL_ADGROUP, REPORT_LEVEL_AD, REPORT_LEVEL_PROMOTED_OBJECT, REPORT_LEVEL_UNION_POSITION, REPORT_LEVEL_CREATIVE_TEMPLATE, REPORT_LEVEL_EXPAND_TARGETING_ADGROUP, REPORT_LEVEL_MATERIAL_VIDEO, REPORT_LEVEL_MATERIAL_IMAGE, REPORT_LEVEL_PRODUCT_CATELOG}，[枚举详情]
 	//	枚举列表：{ REPORT_LEVEL_ADVERTISER, REPORT_LEVEL_CAMPAIGN, REPORT_LEVEL_ADGROUP, REPORT_LEVEL_AD, REPORT_LEVEL_PROMOTED_OBJECT, REPORT_LEVEL_UNION_POSITION, REPORT_LEVEL_CREATIVE_TEMPLATE, REPORT_LEVEL_EXPAND_TARGETING_ADGROUP, REPORT_LEVEL_MATERIAL_VIDEO, REPORT_LEVEL_MATERIAL_IMAGE, REPORT_LEVEL_PRODUCT_CATELOG, REPORT_LEVEL_ADVERTISER_WECHAT, REPORT_LEVEL_CAMPAIGN_WECHAT, REPORT_LEVEL_ADGROUP_WECHAT, REPORT_LEVEL_AD_WECHAT }
 	//	微信公众账号逻辑
 	//
 	//	仅可使用：{REPORT_LEVEL_ADVERTISER_WECHAT, REPORT_LEVEL_CAMPAIGN_WECHAT, REPORT_LEVEL_ADGROUP_WECHAT, REPORT_LEVEL_AD_WECHAT}
-	Level string `json:"level"`
+	Level string `json:"level,omitempty"`
 
 	// 日期范围，最早支持查询 1 年内（365 天）的数据
-	DateRange *DateRange `json:"date_range"`
+	DateRange *DateRange `json:"date_range,omitempty"`
 
 	// 过滤条件，若此字段不传，或传空则视为无限制条件，若获取联盟广告位信息此字段必填，详见 [过滤条件]
 	//	数组最小长度 1，最大长度 5
-	Filtering []Filtering `json:"filtering"`
+	Filtering []Filtering `json:"filtering,omitempty"`
 
 	// 聚合参数，见 [聚合规则]
 	//	数组最小长度 1，最大长度 4
@@ -87,31 +89,60 @@ type GetDailyReportsOptions struct {
 	//	微信公众账号逻辑
 	//
 	//	不支持
-	GroupBy []string `json:"group_by"`
+	GroupBy []string `json:"group_by,omitempty"`
 
 	// 排序字段
 	//	数组长度为 1
-	OrderBy []OrderBy `json:"order_by"`
+	OrderBy []OrderBy `json:"order_by,omitempty"`
 
 	// 	搜索页码，默认值：1
 	//	最小值 1，最大值 99999
-	Page int `json:"page"`
+	Page string `json:"page,omitempty"`
 
 	// 	一页显示的数据条数，默认值：10
 	//	最小值 1，最大值 1000
-	PageSize int `json:"page_size"`
+	PageSize string `json:"page_size,omitempty"`
 
 	// 时间口径，[枚举详情]
 	//	枚举列表：{ REQUEST_TIME, REPORTING_TIME, ACTIVE_TIME }
 	//	微信公众账号逻辑
 	//
 	//	仅支持 REPORTING_TIME
-	TimeLine string `json:"time_line"`
+	TimeLine string `json:"time_line,omitempty"`
 
 	// 	指定返回的字段列表
 	//	数组最小长度 1，最大长度 256
 	//	字段长度最小 1 字节，长度最大 64 字节
-	Fields []string `json:"fields"`
+	Fields []string `json:"fields,omitempty"`
+}
+
+func (o *GetDailyReportsOptions) uri(accessToken, timestamp, nonce string) (string, error) {
+	data, err := json.Marshal(o)
+	if err != nil {
+		return "", err
+	}
+	mp := make(map[string]interface{}, 10)
+	err = json.Unmarshal(data, &mp)
+	if err != nil {
+		return "", err
+	}
+	vs := make(url.Values, len(mp))
+	for field, v := range mp {
+		switch tv := v.(type) {
+		case string:
+			vs.Set(field, tv)
+		default:
+			data, _ = json.Marshal(v)
+			vs.Set(field, string(data))
+		}
+	}
+	vs.Set("access_token", accessToken)
+	vs.Set("timestamp", timestamp)
+	vs.Set("nonce", nonce)
+	for field, vues := range vs {
+		log.Error.Printf("%s: %v\n", field, vues)
+	}
+	return "https://api.e.qq.com/v1.3/daily_reports/get?" + vs.Encode(), nil
 }
 
 // 分页配置信息
@@ -129,21 +160,13 @@ type DailyReports struct {
 
 // 获取日报表，see: https://developers.e.qq.com/docs/api/insights/ad_insights/daily_reports_get?version=1.1&_preview=1
 func GetDailyReports(accessToken string, opts *GetDailyReportsOptions) (*DailyReports, error) {
-	method := "daily_reports/get"
-	uri := getUri(accessToken, method)
+	timestamp := strconv.FormatInt(Now().Unix(), 10)
+	nonce := timestamp + strconv.Itoa(rand.Intn(999999))
+	uri, err := opts.uri(accessToken, timestamp, nonce)
 	reports := &DailyReports{}
-	err := HttpGet(uri, Params{opts}, reports)
+	err = HttpGet(uri, reports)
 	if err != nil {
 		return nil, err
 	}
 	return reports, nil
-}
-
-func getUri(token, method string) string {
-	vs := url.Values{}
-	vs.Set("access_token", token)
-	now := strconv.FormatInt(Now().Unix(), 10)
-	vs.Set("timestamp", now)
-	vs.Set("nonce", now+strconv.Itoa(rand.Intn(999999)))
-	return "https://api.e.qq.com/v1.1/" + method + "?" + vs.Encode()
 }

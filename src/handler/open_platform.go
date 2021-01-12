@@ -10,6 +10,7 @@ import (
 	"github.com/morgine/songs/src/cache"
 	"github.com/morgine/songs/src/message"
 	"github.com/morgine/songs/src/model"
+	"github.com/morgine/wechat_sdk/pkg/custom_menu"
 	"github.com/morgine/wechat_sdk/pkg/material"
 	message3 "github.com/morgine/wechat_sdk/pkg/message"
 	"github.com/morgine/wechat_sdk/pkg/statistics"
@@ -30,11 +31,13 @@ const (
 type OpenPlatform struct {
 	pt              *src.OpenClient
 	appModel        *model.AppModel
+	appPayoutDB     *model.AppPayOutDB
 	tempMaterials   *cache.TempMaterialClient
 	materialClient  *cache.MaterialClient
 	miniProgramCard *cache.MiniProgramCardClient
 	userTag         *cache.UserTagClient
 	appUserTag      *cache.AppUserTagClient
+	menusClient     *cache.MenusClient
 	articleClient   *cache.ArticleClient
 	uploader        *upload.MultiFileHandlers
 	host            string
@@ -46,8 +49,9 @@ func NewOpenPlatform(openClientConfigs *src.OpenClientConfigs, db *gorm.DB, rds 
 		&model.App{},
 	)
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
+	appPayOutDB := model.NewAppPayOutDB(db)
 	var (
 		tempMaterialClient    *cache.TempMaterialClient
 		materialClient        *cache.MaterialClient
@@ -55,6 +59,7 @@ func NewOpenPlatform(openClientConfigs *src.OpenClientConfigs, db *gorm.DB, rds 
 		userTagClient         *cache.UserTagClient
 		appUserTagClient      *cache.AppUserTagClient
 		articleClient         *cache.ArticleClient
+		menusClient           *cache.MenusClient
 	)
 	engine := cache.NewRedisEngine(rds)
 	tempMaterialClient = cache.NewTempMaterialClient("temp_material_", engine)
@@ -63,6 +68,7 @@ func NewOpenPlatform(openClientConfigs *src.OpenClientConfigs, db *gorm.DB, rds 
 	userTagClient = cache.NewUserTagClient("cpm_user_tag_", engine)
 	appUserTagClient = cache.NewAppUserTagClient("app_user_tag_", engine)
 	articleClient = cache.NewArticleClient("article_", engine)
+	menusClient = cache.NewMenusClient("menus_", engine)
 
 	openClient, err := src.NewOpenClient(openClientConfigs)
 	if err != nil {
@@ -71,12 +77,14 @@ func NewOpenPlatform(openClientConfigs *src.OpenClientConfigs, db *gorm.DB, rds 
 	op := &OpenPlatform{
 		pt:              openClient,
 		appModel:        model.NewModel(db).App(),
+		appPayoutDB:     appPayOutDB,
 		tempMaterials:   tempMaterialClient,
 		materialClient:  materialClient,
 		miniProgramCard: miniProgramCardClient,
 		userTag:         userTagClient,
 		appUserTag:      appUserTagClient,
 		articleClient:   articleClient,
+		menusClient:     menusClient,
 		host:            host,
 		uploader:        uploader,
 		imageDir:        imageDir,
@@ -210,6 +218,7 @@ func (op *OpenPlatform) GetApps() gin.HandlerFunc {
 	type params struct {
 		model.OrderBy
 		model.Pagination
+		Selects model.Selects
 	}
 	return func(ctx *gin.Context) {
 		ps := &params{}
@@ -217,7 +226,7 @@ func (op *OpenPlatform) GetApps() gin.HandlerFunc {
 		if err != nil {
 			SendError(ctx, err)
 		} else {
-			apps, err := op.appModel.GetApps(ps.OrderBy, ps.Pagination)
+			apps, err := op.appModel.GetApps(ps.OrderBy, ps.Pagination, ps.Selects)
 			if err != nil {
 				SendError(ctx, err)
 			} else {
@@ -260,7 +269,9 @@ type Statistics struct {
 	ClickCount        int     `json:"click_count"`         // 点击量
 	ClickRate         float64 `json:"click_rate"`          // 点击率, click_count/exposure_count
 	Outcome           int     `json:"outcome"`             // 支出(分)
+	TotalOutcome      float64 `json:"total_outcome"`       // 总支出(分)
 	Income            int     `json:"income"`              // 收入(分)
+	TotalIncome       int     `json:"total_income"`        // 总收入(分)
 	IncomeOutcomeRate float64 `json:"income_outcome_rate"` // 收入支出比率, income/outcome
 	Ecpm              float64 `json:"ecpm"`                // 广告千次曝光收益(分), 1000/exposure_count*income
 }
@@ -321,6 +332,30 @@ func (ds *DateStatistics) initAppData(appid, nickname, err string) *AppStatistic
 }
 
 type DatesStatistics []*DateStatistics // 多日期统计数据
+
+func (ds DatesStatistics) appendTotalIncome(appid string, totalIncome int) {
+	for _, d := range ds {
+		for _, app := range d.Apps {
+			if app.Appid == appid {
+				app.TotalIncome = totalIncome
+				d.Data.TotalIncome += totalIncome
+			}
+		}
+	}
+}
+
+func (ds DatesStatistics) appendTotalOutcome(pays []*model.AppPayOut) {
+	pm := make(map[string]float64, len(pays))
+	for _, pay := range pays {
+		pm[pay.Appid] = pay.PayOut
+	}
+	for _, dateStatistics := range ds {
+		for _, app := range dateStatistics.Apps {
+			app.TotalOutcome = pm[app.Appid]
+			dateStatistics.Data.TotalOutcome += pm[app.Appid]
+		}
+	}
+}
 
 func (ds *DatesStatistics) initDateData(date string) *DateStatistics {
 	for _, dateStatistics := range *ds {
@@ -448,11 +483,42 @@ func (op *OpenPlatform) GetUserStatistics() gin.HandlerFunc {
 									}
 								}
 							}
+							// 累计收入统计
+							var ss *statistics.PublisherSettlementResponse
+							page, pageSize = 1, 90
+							//for {
+							ss, err = client.GetPublisherSettlement(statistics.PublisherCommonOptions{
+								Page:      page,
+								PageSize:  pageSize,
+								StartDate: beginDate,
+								EndDate:   endDate,
+							})
+							if err != nil {
+								datesStatistics.AppendAppError(app.Appid, app.NickName, err, beginDate)
+								//break
+							} else {
+								datesStatistics.appendTotalIncome(app.Appid, ss.RevenueAll)
+							}
+							//if page*pageSize < ss.TotalNum {
+							//	page++
+							//} else {
+							//	break
+							//}
+							//}
 						}
 						wg.Done()
 					}()
 				}
 				wg.Wait()
+
+				// 读取支出金额
+				var appids []string
+				for _, app := range apps {
+					appids = append(appids, app.Appid)
+				}
+				payouts := op.appPayoutDB.GetAppPayOut(appids)
+				datesStatistics.appendTotalOutcome(payouts)
+
 				SendJSON(ctx, datesStatistics)
 			}
 		}
@@ -645,6 +711,112 @@ func (op *OpenPlatform) SaveUserTag() gin.HandlerFunc {
 			}
 		}
 	}
+}
+
+func (op *OpenPlatform) GetMenus() gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		menus, err := op.menusClient.Get(op.pt.Configs().Appid)
+		if err != nil {
+			SendError(ctx, err)
+		} else {
+			if menus == nil {
+				menus = cache.Menus{{Name: "默认菜单组"}}
+			}
+			SendJSON(ctx, menus)
+		}
+	}
+}
+
+func (op *OpenPlatform) SaveMenus() gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		var menus cache.Menus
+		err := ctx.Bind(&menus)
+		if err != nil {
+			SendError(ctx, err)
+		} else {
+			err = op.menusClient.Set(op.pt.Configs().Appid, menus)
+			if err != nil {
+				SendError(ctx, err)
+			} else {
+				SendMessage(ctx, message.StatusOK, "已保存")
+			}
+		}
+	}
+}
+
+func (op *OpenPlatform) GenerateMenu() gin.HandlerFunc {
+	type params struct {
+		Appids  []string
+		Buttons []custom_menu.Button
+	}
+	return func(ctx *gin.Context) {
+		ps := &params{}
+		err := ctx.Bind(ps)
+		if err != nil {
+			SendError(ctx, err)
+		} else {
+			var errs []error
+			for _, appid := range ps.Appids {
+				client, err := op.pt.GetClient(appid)
+				if err != nil {
+					errs = append(errs, err)
+				} else {
+					err = client.CreateMenu(ps.Buttons)
+					if err != nil {
+						errs = append(errs, err)
+					}
+				}
+			}
+			if errs != nil {
+				SendErrors(ctx, errs...)
+			} else {
+				SendMessage(ctx, message.StatusOK, "操作成功")
+			}
+		}
+	}
+}
+
+func (op *OpenPlatform) RemoveMenu() gin.HandlerFunc {
+	type params struct {
+		Appids []string
+	}
+	return func(ctx *gin.Context) {
+		ps := &params{}
+		err := ctx.Bind(ps)
+		if err != nil {
+			SendError(ctx, err)
+		} else {
+			var errs []error
+			for _, appid := range ps.Appids {
+				client, err := op.pt.GetClient(appid)
+				if err != nil {
+					errs = append(errs, err)
+				} else {
+					err = client.DeleteMenu()
+					if err != nil {
+						errs = append(errs, err)
+					}
+				}
+			}
+			if errs != nil {
+				SendErrors(ctx, errs...)
+			} else {
+				SendMessage(ctx, message.StatusOK, "操作成功")
+			}
+		}
+	}
+}
+
+func (op *OpenPlatform) UploadMaterial(appid, uploadedFilename string) (*material.UploadedMedia, error) {
+	publicClient, err := op.pt.GetClient(appid)
+	if err != nil {
+		return nil, err
+	}
+	data, err := op.uploader.GetFile(uploadedFilename)
+	if err != nil {
+		return nil, err
+	}
+	return publicClient.UploadMaterial(material.IMAGE, data, uploadedFilename, nil)
 }
 
 func (op *OpenPlatform) getMaterial(client *src.PublicClient, filename string) (*material.UploadedMedia, error) {

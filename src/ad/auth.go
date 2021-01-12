@@ -52,16 +52,22 @@ type GetAccessTokenOptions struct {
 	RedirectUri string `url:"redirect_uri,omitempty"`
 }
 
+func (o *GetAccessTokenOptions) uri() (string, error) {
+	vs, err := query.Values(o)
+	if err != nil {
+		return "", err
+	}
+	vs.Set("grant_type", "authorization_code")
+	return "https://api.e.qq.com/oauth/token?" + vs.Encode(), nil
+}
+
 func GetAccessToken(opts *GetAccessTokenOptions) (*AccessToken, error) {
-	v := struct {
-		GrantType string `url:"grant_type"`
-		GetAccessTokenOptions
-	}{
-		GrantType:             "authorization_code",
-		GetAccessTokenOptions: *opts,
+	uri, err := opts.uri()
+	if err != nil {
+		return nil, err
 	}
 	token := &AccessToken{}
-	err := HttpGet("https://api.e.qq.com/oauth/token", []interface{}{v}, token)
+	err = HttpGet(uri, token)
 	if err != nil {
 		return nil, err
 	}
@@ -79,16 +85,22 @@ type RefreshAccessTokenOptions struct {
 	RefreshToken string `url:"refresh_token,omitempty"`
 }
 
+func (o *RefreshAccessTokenOptions) uri() (string, error) {
+	vs, err := query.Values(o)
+	if err != nil {
+		return "", err
+	}
+	vs.Set("grant_type", "refresh_token")
+	return "https://api.e.qq.com/oauth/token?" + vs.Encode(), nil
+}
+
 func RefreshAccessToken(opts *RefreshAccessTokenOptions) (*AccessToken, error) {
-	v := struct {
-		GrantType string `url:"grant_type"`
-		RefreshAccessTokenOptions
-	}{
-		GrantType:                 "refresh_token",
-		RefreshAccessTokenOptions: *opts,
+	uri, err := opts.uri()
+	if err != nil {
+		return nil, err
 	}
 	token := &AccessToken{}
-	err := HttpGet("https://api.e.qq.com/oauth/token", []interface{}{v}, token)
+	err = HttpGet(uri, token)
 	if err != nil {
 		return nil, err
 	}
