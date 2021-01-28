@@ -11,6 +11,7 @@ import (
 	message2 "github.com/morgine/wechat_sdk/pkg/message"
 	"github.com/morgine/wechat_sdk/src"
 	"gorm.io/gorm"
+	"time"
 )
 
 type subscribeMessageStorage struct {
@@ -76,7 +77,7 @@ type SubscribeMessage struct {
 func NewSubscribeMessage(op *OpenPlatform, rds *redis.Client, db *gorm.DB) *SubscribeMessage {
 	cacheEngine := cache.NewRedisEngine(rds)
 	msgDB := model.NewSubscribeMessageDB(db, &subscribeMessageStorage{engine: cacheEngine})
-	op.pt.SubscribeEvent(message2.EvtUserSubscribe, func(msg *message2.EventMessage, ctx *src.Context) {
+	op.pt.SubscribeEvent(message2.EvtUserSubscribe, func(data message2.ServerMessageData, msg *message2.EventMessage, ctx *src.Context) {
 		client := ctx.Client()
 		appid := client.GetAppid()
 		msgs, err := msgDB.GetAppSubscribeMessages(appid)
@@ -114,25 +115,28 @@ func NewSubscribeMessage(op *OpenPlatform, rds *redis.Client, db *gorm.DB) *Subs
 				}
 			}
 			if len(msgs.Cards) > 0 {
-				for _, card := range msgs.Cards {
-					if card != nil && card.ThumbMediaFilename != "" {
-						mediaID, err := op.getTempMaterialID(client, card.ThumbMediaFilename)
-						if err != nil {
-							log.Error.Println(err)
-						} else {
-							page := &message2.MiniProgramPage{
-								Title:        card.Title,
-								Appid:        card.Appid,
-								PagePath:     card.PagePath,
-								ThumbMediaID: mediaID,
-							}
-							err = client.SendMiniProgramPage([]string{ctx.Openid}, page)
+				go func() {
+					time.Sleep(1 * time.Second)
+					for _, card := range msgs.Cards {
+						if card != nil && card.ThumbMediaFilename != "" {
+							mediaID, err := op.getTempMaterialID(client, card.ThumbMediaFilename)
 							if err != nil {
 								log.Error.Println(err)
+							} else {
+								page := &message2.MiniProgramPage{
+									Title:        card.Title,
+									Appid:        card.Appid,
+									PagePath:     card.PagePath,
+									ThumbMediaID: mediaID,
+								}
+								err = client.SendMiniProgramPage([]string{ctx.Openid}, page)
+								if err != nil {
+									log.Error.Println(err)
+								}
 							}
 						}
 					}
-				}
+				}()
 			}
 		}
 	})

@@ -8,8 +8,9 @@ import (
 )
 
 type App struct {
-	db    *model.AppGroupDB
-	payDB *model.AppPayOutDB
+	db        *model.AppGroupDB
+	payDB     *model.AppPayOutDB
+	managerDB *model.AppManagerDB
 }
 
 func NewApp(db *gorm.DB) *App {
@@ -18,7 +19,8 @@ func NewApp(db *gorm.DB) *App {
 		panic(err)
 	}
 	paydb := model.NewAppPayOutDB(db)
-	return &App{db: agdb, payDB: paydb}
+	managerDB := model.NewAppManagerDB(db)
+	return &App{db: agdb, payDB: paydb, managerDB: managerDB}
 }
 
 func (a *App) GetAppGroups() gin.HandlerFunc {
@@ -170,5 +172,33 @@ func (a *App) GetAppsPayouts() gin.HandlerFunc {
 			pays := a.payDB.GetAppPayOut(ps.Appids)
 			SendJSON(ctx, pays)
 		}
+	}
+}
+
+func (a *App) SetAppManager() gin.HandlerFunc {
+	type params struct {
+		Appid   string
+		Manager string
+	}
+	return func(ctx *gin.Context) {
+		ps := &params{}
+		err := ctx.Bind(ps)
+		if err != nil {
+			SendError(ctx, err)
+		} else {
+			err = a.managerDB.SetAppManager(ps.Appid, ps.Manager)
+			if err != nil {
+				SendError(ctx, err)
+			} else {
+				SendMessage(ctx, message.StatusOK, "已保存")
+			}
+		}
+	}
+}
+
+func (a *App) GetAppsManagers() gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		managers := a.managerDB.GetAppManagers()
+		SendJSON(ctx, managers)
 	}
 }

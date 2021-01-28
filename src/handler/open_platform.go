@@ -32,6 +32,7 @@ type OpenPlatform struct {
 	pt              *src.OpenClient
 	appModel        *model.AppModel
 	appPayoutDB     *model.AppPayOutDB
+	appEvtMsgDB     *model.AppGroupMessageEventDB
 	tempMaterials   *cache.TempMaterialClient
 	materialClient  *cache.MaterialClient
 	miniProgramCard *cache.MiniProgramCardClient
@@ -52,6 +53,7 @@ func NewOpenPlatform(openClientConfigs *src.OpenClientConfigs, db *gorm.DB, rds 
 		panic(err)
 	}
 	appPayOutDB := model.NewAppPayOutDB(db)
+	appEvtMsgDB := model.NewAppGroupMessageEventDB(db)
 	var (
 		tempMaterialClient    *cache.TempMaterialClient
 		materialClient        *cache.MaterialClient
@@ -82,6 +84,7 @@ func NewOpenPlatform(openClientConfigs *src.OpenClientConfigs, db *gorm.DB, rds 
 		materialClient:  materialClient,
 		miniProgramCard: miniProgramCardClient,
 		userTag:         userTagClient,
+		appEvtMsgDB:     appEvtMsgDB,
 		appUserTag:      appUserTagClient,
 		articleClient:   articleClient,
 		menusClient:     menusClient,
@@ -89,57 +92,32 @@ func NewOpenPlatform(openClientConfigs *src.OpenClientConfigs, db *gorm.DB, rds 
 		uploader:        uploader,
 		imageDir:        imageDir,
 	}
-	openClient.SubscribeEvent(message3.EvtUserSubscribe, func(msg *message3.EventMessage, ctx *src.Context) {
-		client := ctx.Client()
-		articles, err := articleClient.Get(openClientConfigs.Appid)
+	// 监听群发消息结果
+	openClient.SubscribeEvent(message3.EvtGroupMsgResult, func(data message3.ServerMessageData, evt *message3.EventMessage, ctx *src.Context) {
+		result, err := data.MarshalGroupMsgResult()
 		if err != nil {
 			log.Error.Println(err)
-		} else if len(articles) > 0 {
-			var arts []src.Article
-			for _, article := range articles {
-				media, err := op.getMaterial(client, article.PicFile)
-				if err != nil {
-					log.Error.Println(err)
-				} else {
-					arts = append(arts, src.Article{
-						Title:       article.Title,
-						Description: article.Description,
-						Url:         article.Url,
-						PicUrl:      media.Url,
-					})
-				}
-			}
-			err = ctx.ResponseArticles(arts)
+		} else {
+			// 创建群发消息记录
+			err = appEvtMsgDB.Create(&model.AppGroupMessageEvent{
+				ID:    0,
+				Appid: ctx.Client().GetAppid(),
+				//NickName:    "",
+				Status:      result.Status,
+				TotalCount:  result.TotalCount,
+				FilterCount: result.FilterCount,
+				SentCount:   result.SentCount,
+				ErrorCount:  result.ErrorCount,
+				Timestamp:   time.Now().Unix(),
+			})
 			if err != nil {
 				log.Error.Println(err)
 			}
 		}
-		// 发送小程序卡片消息(通过客服消息接口发送)
-		// 图片使用公众号临时素材，3 天后过期
-		cards, err := miniProgramCardClient.Get(openClientConfigs.Appid)
-		if err != nil {
-			log.Error.Println(err)
-		} else {
-			for _, card := range cards {
-				if card != nil && card.ThumbMediaFilename != "" {
-					mediaID, err := op.getTempMaterialID(client, card.ThumbMediaFilename)
-					if err != nil {
-						log.Error.Println(err)
-					} else {
-						page := &message3.MiniProgramPage{
-							Title:        card.Title,
-							Appid:        card.Appid,
-							PagePath:     card.PagePath,
-							ThumbMediaID: mediaID,
-						}
-						err = client.SendMiniProgramPage([]string{ctx.Openid}, page)
-						if err != nil {
-							log.Error.Println(err)
-						}
-					}
-				}
-			}
-		}
+	})
+	// 监听用户关注事件
+	openClient.SubscribeEvent(message3.EvtUserSubscribe, func(_ message3.ServerMessageData, msg *message3.EventMessage, ctx *src.Context) {
+		client := ctx.Client()
 		// 设置用户标签
 		tag, err := op.getUserTag(openClientConfigs.Appid, client)
 		if err != nil {
@@ -817,6 +795,93 @@ func (op *OpenPlatform) UploadMaterial(appid, uploadedFilename string) (*materia
 		return nil, err
 	}
 	return publicClient.UploadMaterial(material.IMAGE, data, uploadedFilename, nil)
+}
+
+func (op *OpenPlatform) GetAppGroupMsgEvent() gin.HandlerFunc {
+	type params struct {
+		Start int64
+		End   int64
+	}
+	return func(ctx *gin.Context) {
+		ps := &params{}
+		err := ctx.Bind(ps)
+		if err != nil {
+			SendError(ctx, err)
+		} else {
+			events := op.appEvtMsgDB.Find(ps.Start, ps.End)
+			SendJSON(ctx, events)
+		}
+	}
+}
+
+func (op *OpenPlatform) SetAppUserTag() gin.HandlerFunc {
+	type params struct {
+		Appid string
+	}
+	return func(ctx *gin.Context) {
+		ps := &params{}
+		err := ctx.Bind(ps)
+		if err != nil {
+			SendError(ctx, err)
+		} else {
+			client, err := op.pt.GetClient(ps.Appid)
+			if err != nil {
+				SendError(ctx, err)
+			} else {
+				// 设置用户标签
+				tag, err := op.getUserTag(op.pt.Configs().Appid, client)
+				if err != nil {
+					SendError(ctx, err)
+				} else {
+					if tag != nil {
+						var totalUsers []string
+						err = client.WalkSubscribers(func(openids []string) error {
+							totalUsers = append(totalUsers, openids...)
+							return nil
+						})
+						if err != nil {
+							SendError(ctx, err)
+						} else {
+							var tagedUsers = make(map[string]struct{}, 50000)
+							err = client.WalkAppTagUsers(tag.ID, func(openids []string) error {
+								for _, openid := range openids {
+									tagedUsers[openid] = struct{}{}
+								}
+								return nil
+							})
+							if err != nil {
+								SendError(ctx, err)
+							} else {
+								var openids []string
+								for _, user := range totalUsers {
+									if _, ok := tagedUsers[user]; !ok {
+										openids = append(openids, user)
+										if len(openids) == 50 {
+											err = client.BatchTagging(tag.ID, openids)
+											if err != nil {
+												SendError(ctx, err)
+												return
+											} else {
+												openids = []string{}
+											}
+										}
+									}
+								}
+								if len(openids) > 0 {
+									err = client.BatchTagging(tag.ID, openids)
+									if err != nil {
+										SendError(ctx, err)
+										return
+									}
+								}
+								SendMessage(ctx, message.StatusOK, "操作成功！")
+							}
+						}
+					}
+				}
+			}
+		}
+	}
 }
 
 func (op *OpenPlatform) getMaterial(client *src.PublicClient, filename string) (*material.UploadedMedia, error) {

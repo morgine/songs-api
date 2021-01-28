@@ -123,6 +123,7 @@ func Run() {
 	{
 		adminAuth.GET("/user-tag", handlers.OpenPlatform.GetUserTag())
 		adminAuth.PUT("/user-tag", handlers.OpenPlatform.SaveUserTag())
+		adminAuth.POST("/set-app-user-tag", handlers.OpenPlatform.SetAppUserTag())
 	}
 
 	{
@@ -135,6 +136,9 @@ func Run() {
 
 		adminAuth.GET("/apps-payout", handlers.App.GetAppsPayouts())
 		adminAuth.POST("/app-payout", handlers.App.SetAppPayout())
+
+		adminAuth.GET("/apps-manager", handlers.App.GetAppsManagers())
+		adminAuth.POST("/app-manager", handlers.App.SetAppManager())
 	}
 
 	{
@@ -163,6 +167,10 @@ func Run() {
 		noAuth.GET(listenCodeRoute, handlers.AdvertPlatform.ListenAdvertAuthorizerCode(v1Path+listenCodeRoute))
 		adminAuth.GET("/daily-reports-level-fields", handlers.AdvertPlatform.GetDailyReportsLevelFields)
 		adminAuth.POST("/daily-reports", handlers.AdvertPlatform.GetDailyReports)
+	}
+
+	{
+		adminAuth.GET("/app-group-msg-result", handlers.OpenPlatform.GetAppGroupMsgEvent())
 	}
 	serveHttp(*addr, engine)
 }
